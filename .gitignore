@@ -1,0 +1,8 @@
+**/bin/
+**/obj/
+.vscode/
+.DS_Store
+local-preview.png
+local-running.png
+local-debug.png
+publish/

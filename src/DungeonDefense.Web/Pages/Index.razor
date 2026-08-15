@@ -1,0 +1,256 @@
+@page "/"
+@implements IAsyncDisposable
+@using DungeonDefense.Application
+@using DungeonDefense.Core
+@inject HttpClient Http
+
+<PageTitle>Dungeon Defense — Web Spike</PageTitle>
+
+@if (_demo is null)
+{
+    <div class="loading-shell"><div class="loader"></div><p>ダンジョンを読み込み中…</p></div>
+}
+else
+{
+    <div class="app-shell">
+        <header class="topbar">
+            <div>
+                <div class="eyebrow">2dTD · WEB PLAYABLE SPIKE</div>
+                <h1>あなたのダンジョン</h1>
+            </div>
+            <div class="runtime-badge"><span class="dot"></span> C# Core / WASM</div>
+        </header>
+
+        <section class="status-row">
+            <div><span>防衛</span><strong>@OutcomeText</strong></div>
+            <div><span>Wave</span><strong>@WaveText</strong></div>
+            <div><span>Core</span><strong>@CoreText</strong></div>
+            <div><span>MP</span><strong>@MpText</strong></div>
+            <div><span>Tick</span><strong>@(_demo.Simulation?.Tick ?? 0)</strong></div>
+        </section>
+
+        <main class="game-layout">
+            <section class="world-card">
+                <div class="world-heading">
+                    <div><strong>地下1階</strong><span>成功構成 · 実Production Asset</span></div>
+                    <div class="speed-picker" aria-label="再生速度">
+                        @foreach (var speed in new[] { 1, 2, 3 })
+                        {
+                            <button class="@(speed == _speed ? "active" : null)" @onclick="() => _speed = speed">@speed×</button>
+                        }
+                    </div>
+                </div>
+
+                <div class="board-wrap">
+                    <div class="board" style="grid-template-columns: repeat(@_demo.Board.Width, 1fr);">
+                        @for (var y = 0; y < _demo.Board.Height; y++)
+                        {
+                            @for (var x = 0; x < _demo.Board.Width; x++)
+                            {
+                                var point = new GridPoint(x, y);
+                                <div class="cell" style="background-image:url('@TileAsset(point)')">
+                                    @if (point == _demo.Board.Core)
+                                    {
+                                        <img class="object core" src="@CoreAsset" alt="Core" />
+                                    }
+                                    @foreach (var trap in _demo.Board.Traps.Where(t => t.Position == point))
+                                    {
+                                        <img class="object fixture" src="@TrapAsset(trap.DefinitionId)" alt="trap" />
+                                    }
+                                    @foreach (var facility in _demo.Board.Facilities.Where(f => f.Position == point))
+                                    {
+                                        <img class="object fixture" src="@FacilityAsset(facility.DefinitionId)" alt="facility" />
+                                    }
+                                    @if (_demo.Simulation is null)
+                                    {
+                                        @foreach (var guard in _demo.Board.Guards.Where(g => g.Position == point))
+                                        {
+                                            <img class="unit" src="@UnitAsset(guard.DefinitionId, "E")" alt="guard" />
+                                        }
+                                    }
+                                    else
+                                    {
+                                        @foreach (var unit in _demo.Simulation.Units.Where(u => u.Alive && u.Position == point))
+                                        {
+                                            <div class="unit-wrap @TeamClass(unit.Team)">
+                                                <img class="unit" src="@UnitAsset(unit.DefinitionId, Facing(unit))" alt="@unit.DefinitionId" />
+                                                <div class="hp"><span style="width:@HpPercent(unit)%"></span></div>
+                                            </div>
+                                        }
+                                    }
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+
+                <div class="timeline"><span style="width:@ProgressPercent%"></span></div>
+            </section>
+
+            <aside class="control-card">
+                <div class="control-group primary-controls">
+                    <button class="primary" @onclick="ToggleRun">@RunButtonText</button>
+                    <button @onclick="Reset">リセット</button>
+                </div>
+
+                <div class="control-group">
+                    <div class="section-label">魔法</div>
+                    <button @onclick="CastFreeze">凍結 20 MP</button>
+                    <button @onclick="CastPush">押し戻し 15 MP</button>
+                    @if (!string.IsNullOrWhiteSpace(_notice)) { <p class="notice">@_notice</p> }
+                </div>
+
+                <div class="control-group event-log">
+                    <div class="section-label">直近の戦況</div>
+                    @if (_demo.RecentEvents().Count == 0)
+                    {
+                        <p class="muted">防衛を開始するとCoreから戦闘イベントが流れます。</p>
+                    }
+                    else
+                    {
+                        @foreach (var e in _demo.RecentEvents())
+                        {
+                            <div class="event"><span>@e.Tick</span><strong>@EventText(e)</strong></div>
+                        }
+                    }
+                </div>
+            </aside>
+        </main>
+
+        <footer>
+            <span>Godot 4 C#版の直接Web exportではなく、同じCore/ApplicationをBlazor WebAssemblyで実行する検証buildです。</span>
+        </footer>
+    </div>
+}
+
+@code {
+    private readonly CancellationTokenSource _cts = new();
+    private PeriodicTimer? _timer;
+    private DefenseDemo? _demo;
+    private bool _running;
+    private int _speed = 1;
+    private string? _notice;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var content = await WebDefenseContentLoader.LoadAsync(Http, _cts.Token);
+        _demo = new DefenseDemo(content);
+        _ = RunLoopAsync(_cts.Token);
+    }
+
+    private async Task RunLoopAsync(CancellationToken cancellationToken)
+    {
+        _timer = new PeriodicTimer(TimeSpan.FromMilliseconds(100));
+        try
+        {
+            while (await _timer.WaitForNextTickAsync(cancellationToken))
+            {
+                if (!_running || _demo is null) continue;
+                _demo.AdvanceFrame(_speed);
+                if (_demo.Simulation?.Outcome != DefenseOutcome.Running) _running = false;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+    }
+
+    private void ToggleRun()
+    {
+        if (_demo is null) return;
+        if (_demo.Simulation is null || _demo.Simulation.Outcome != DefenseOutcome.Running)
+        {
+            _demo.Start();
+            _running = true;
+            return;
+        }
+        _running = !_running;
+    }
+
+    private void Reset() { _running = false; _notice = null; _demo?.Reset(); }
+    private void CastFreeze() { if (_demo is not null) _notice = _demo.CastFreeze(); }
+    private void CastPush() { if (_demo is not null) _notice = _demo.CastPush(); }
+
+    private string RunButtonText => _demo?.Simulation switch
+    {
+        null => "防衛開始",
+        { Outcome: DefenseOutcome.Running } when _running => "一時停止",
+        { Outcome: DefenseOutcome.Running } => "再開",
+        _ => "もう一度",
+    };
+    private string OutcomeText => _demo?.Simulation?.Outcome switch { DefenseOutcome.Success => "迎撃成功", DefenseOutcome.Failure => "迎撃失敗", _ => _running ? "防衛中" : "準備完了" };
+    private string WaveText => _demo?.Simulation is { } s ? $"{Math.Min(s.WaveIndex + 1, s.WaveCount)}/{s.WaveCount}" : "0/3";
+    private string CoreText => _demo?.Simulation is { } s ? $"{s.CoreHp}/{s.CoreMaxHp}" : "60/60";
+    private string MpText => _demo?.Simulation is { } s ? $"{s.Mp}/{s.MaxMp}" : "0/100";
+    private int ProgressPercent => _demo?.Simulation is { } s ? Math.Min(100, s.Tick * 100 / 430) : 0;
+    private string CoreAsset => _demo?.Simulation?.Outcome == DefenseOutcome.Failure ? "assets/production/core/CO-02.png" : "assets/production/core/CO-01.png";
+
+    private string TileAsset(GridPoint point) => _demo!.Board.GetTile(point) switch
+    {
+        TileKind.Bedrock => "assets/production/tiles/TS-02.png",
+        TileKind.Entrance => "assets/production/tiles/TS-04.png",
+        TileKind.Core => "assets/production/tiles/TS-05.png",
+        _ => "assets/production/tiles/TS-01.png",
+    };
+    private static string TrapAsset(string id) => id == "trap.poison" ? "assets/production/traps/TR-03.png" : "assets/production/traps/TR-01.png";
+    private static string FacilityAsset(string id) => id == "facility.magic_eye" ? "assets/production/facilities/DF-02.png" : "assets/production/facilities/DF-01.png";
+    private static string TeamClass(Team team) => team == Team.Invader ? "invader" : "dungeon";
+    private static int HpPercent(UnitSnapshot unit) => unit.MaxHp <= 0 ? 0 : Math.Clamp(unit.Hp * 100 / unit.MaxHp, 0, 100);
+
+    private string Facing(UnitSnapshot unit)
+    {
+        if (_demo?.Simulation is not { } simulation) return "E";
+        if (unit.Team == Team.Invader && unit.PathIndex >= 0 && unit.PathIndex + 1 < simulation.Route.Count)
+            return DirectionSuffix(unit.Position, simulation.Route[unit.PathIndex + 1]);
+        if (!string.IsNullOrWhiteSpace(unit.TargetEntityId))
+        {
+            var target = simulation.Units.FirstOrDefault(x => x.EntityId == unit.TargetEntityId);
+            if (target is not null && unit.Position.ManhattanDistance(target.Position) > 0)
+                return DirectionSuffix(unit.Position, target.Position);
+        }
+        return unit.Team == Team.Invader ? "E" : "W";
+    }
+
+    private static string DirectionSuffix(GridPoint from, GridPoint to)
+    {
+        var dx = to.X - from.X;
+        var dy = to.Y - from.Y;
+        if (Math.Abs(dx) >= Math.Abs(dy)) return dx >= 0 ? "E" : "W";
+        return dy >= 0 ? "S" : "N";
+    }
+
+    private static string UnitAsset(string definitionId, string facing)
+    {
+        var id = definitionId switch
+        {
+            "monster.skeleton_warrior" => "MN-01", "monster.skeleton_archer" => "MN-02",
+            "human.warrior" => "HU-01", "human.archer" => "HU-02", "human.priest" => "HU-03",
+            "human.knight" => "HU-04", "human.mage" => "HU-05", "human.scout" => "HU-06",
+            "human.crossbowman" => "HU-07", "human.berserker" => "HU-08", "human.high_priest" => "HU-09",
+            "human.hero" => "BS-01", _ => "HU-01",
+        };
+        return $"assets/production/units/directional/{id}-{facing}.png";
+    }
+
+    private static string EventText(DefenseEvent e) => e.Type switch
+    {
+        DefenseEventType.WaveStart => "新しいWave",
+        DefenseEventType.Spawn => "侵入者が出現",
+        DefenseEventType.TrapTriggered => "罠が発動",
+        DefenseEventType.Attack => "攻撃",
+        DefenseEventType.Heal => "回復",
+        DefenseEventType.Death => "ユニット撃破",
+        DefenseEventType.CoreDamaged => $"コアに {e.Amount} ダメージ",
+        DefenseEventType.DefenseSuccess => "防衛成功",
+        DefenseEventType.DefenseFailure => "防衛失敗",
+        DefenseEventType.SpellCast => "魔法発動",
+        _ => e.Type.ToString(),
+    };
+
+    public ValueTask DisposeAsync()
+    {
+        _cts.Cancel();
+        _timer?.Dispose();
+        _cts.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

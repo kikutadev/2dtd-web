@@ -1,0 +1,6 @@
+Source project: 2dTD
+Source game revision: bdc8cf6ce1a2377c20e37c0c682eefaf94804e37
+Snapshot date: 2026-08-15
+Shared projects: DungeonDefense.Core, DungeonDefense.Contracts, DungeonDefense.Application
+Content: content/vertical-slice.json
+Art: godot/assets/production
