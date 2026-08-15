@@ -1,6 +1,6 @@
-# 2dTD Web Playable Spike
+# 2dTD Web Playable Demo
 
-Public browser build used to verify that the 2dTD gameplay core can run on WebAssembly and be hosted as static files on GitHub Pages.
+Public browser demo for playing the production 2dTD dungeon-build and defense rules directly in WebAssembly on GitHub Pages.
 
 ## What this is
 
@@ -15,19 +15,22 @@ Godot 4 C# projects cannot currently be exported directly to Web. This repositor
 
 The browser demo runs the real `DefenseSimulation`; it is not a JavaScript reimplementation of the combat rules.
 
-## Scope of the first spike
+## Current playable scope
 
 - production dungeon tiles / units / traps / facilities / core art
 - actual C# defense simulation in browser WASM
 - shared `CombatVisualState`によるMove / Attack / Hit / Death / Push / projectile motion
 - 20Hz Core simulation clockと約60Hz browser render clockの分離
-- start / pause / reset
+- production `DefenseEditCommandService` placement preview / place / remove
+- Build → Defense → Result → Rebuild without a page reload
+- start / pause / replay
 - 1x / 2x / 3x simulation speed
 - freeze / push spell commands
 - live Core HP / MP / wave / tick / recent event presentation
+- ja/en Web-demo localization with production build terminology
 - responsive static hosting suitable for GitHub Pages
 
-It is **not** a full port of the current Godot UI, campaign, editor, invasion flow, audio, persistence, or mobile acceptance surface.
+It is **not** a port of the Godot editor UI. The browser host stays intentionally thin: placement rules and battle rules remain in the production Application/Core, while the Web layer only renders and translates the minimum playable interactions. Campaign persistence, audio, and the full native mobile shell remain outside the demo.
 
 ## Local build
 
@@ -36,6 +39,15 @@ dotnet restore src/DungeonDefense.Web/DungeonDefense.Web.csproj
 dotnet build src/DungeonDefense.Web/DungeonDefense.Web.csproj -c Release
 dotnet run --project src/DungeonDefense.Web/DungeonDefense.Web.csproj -c Release
 ```
+
+## Acceptance smoke
+
+```bash
+dotnet test tests/DungeonDefense.Web.Tests/DungeonDefense.Web.Tests.csproj -c Release
+node scripts/browser-smoke.mjs
+```
+
+The browser smoke publishes the app to a temporary directory and drives headless Chrome through the DevTools Protocol without third-party Node packages. It places a trap, guard, and facility through real UI clicks, completes a 3× defense, returns to the same editable build, removes a placement, switches to English, and verifies that a 390px mobile viewport has no document-level horizontal overflow.
 
 ## Source provenance
 

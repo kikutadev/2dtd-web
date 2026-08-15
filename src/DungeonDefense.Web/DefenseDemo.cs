@@ -14,10 +14,15 @@ internal sealed class DefenseDemo
     private int _eventCursor;
     private double _simulationAccumulatorSeconds;
 
-    public DefenseDemo(DefenseContent content)
+    public DefenseDemo(DefenseContent content, DefenseGameSession? session = null)
     {
-        _content = content;
-        Reset();
+        _content = content ?? throw new ArgumentNullException(nameof(content));
+        if (session is null) Reset();
+        else
+        {
+            Session = session;
+            ResetRuntimeState();
+        }
     }
 
     public DefenseGameSession Session { get; private set; } = null!;
@@ -30,17 +35,17 @@ internal sealed class DefenseDemo
     {
         Session = DefenseSliceScenario.CreateSession();
         DefenseSliceScenario.ConfigureSuccessfulDefense(Session);
-        Simulation = null;
-        _autoBattle = null;
-        _eventCursor = 0;
-        _simulationAccumulatorSeconds = 0;
-        _presentation.Reset();
+        ResetRuntimeState();
     }
 
     public void Start()
     {
         if (Simulation is { Outcome: DefenseOutcome.Running }) return;
-        if (Simulation is not null) Reset();
+        if (Simulation is not null)
+        {
+            Session.ReturnToPreparation();
+            ResetRuntimeState();
+        }
         Simulation = Session.StartDefense(_content, seed: 20260815);
         _autoBattle = Session.CreateAutoBattleController();
         _simulationAccumulatorSeconds = 0;
@@ -103,6 +108,16 @@ internal sealed class DefenseDemo
 
     public IReadOnlyList<DefenseEvent> RecentEvents(int count = 5)
         => Simulation?.Events.TakeLast(count).Reverse().ToArray() ?? [];
+
+    /// <summary>Clears only host/presentation runtime state while preserving the currently edited production session.</summary>
+    private void ResetRuntimeState()
+    {
+        Simulation = null;
+        _autoBattle = null;
+        _eventCursor = 0;
+        _simulationAccumulatorSeconds = 0;
+        _presentation.Reset();
+    }
 
     private UnitSnapshot? FirstAliveInvader()
         => Simulation?.Units.FirstOrDefault(x => x.Team == Team.Invader && x.Alive);

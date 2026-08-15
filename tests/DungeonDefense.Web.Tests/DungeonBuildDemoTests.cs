@@ -43,6 +43,30 @@ public sealed class DungeonBuildDemoTests
     }
 
     [Fact]
+    public void DefenseHostUsesEditedSessionAndReturnsToSameBuildState()
+    {
+        var content = CreateDefenseContent();
+        var build = new DungeonBuildDemo(content);
+        var placed = build.Place(DefenseSliceBuildCatalog.SpikeTrap.Id, 4, 3);
+        Assert.True(placed.Success, placed.Error);
+        var placedId = Assert.Single(build.Board.Traps).InstanceId;
+
+        var defense = new DefenseDemo(content, build.Session);
+        defense.Start();
+        Assert.Equal(placedId, Assert.Single(defense.Board.Traps).InstanceId);
+
+        for (var frame = 0; frame < 2_000 && defense.Simulation?.Outcome == DefenseOutcome.Running; frame++)
+            defense.AdvanceFrame(0.05, speed: 3, advanceSimulation: true);
+
+        Assert.NotNull(defense.Simulation);
+        Assert.NotEqual(DefenseOutcome.Running, defense.Simulation!.Outcome);
+
+        build.ReturnToBuild();
+        Assert.Null(build.Session.ActiveDefense);
+        Assert.Equal(placedId, Assert.Single(build.Board.Traps).InstanceId);
+    }
+
+    [Fact]
     public void RemoveUsesProductionSemanticCommandAndRestoresSlot()
     {
         var demo = new DungeonBuildDemo(CreateDefenseContent());
