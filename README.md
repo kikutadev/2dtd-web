@@ -37,3 +37,25 @@ dotnet run --project src/DungeonDefense.Web/DungeonDefense.Web.csproj -c Release
 ## Source provenance
 
 See `SOURCE_REVISION.txt`. The shared C# projects are intentionally copied into this separate repository so GitHub Pages CI can build independently of the private/local game workspace.
+
+## Refreshing the production snapshot
+
+The sibling `2dTD` source remains authoritative. Refresh the copied projects, playable content, and promoted art with one command:
+
+```bash
+./scripts/sync-from-2dtd.sh
+```
+
+The command synchronizes `Core`, `Contracts`, `Application`, and `Presentation`, removes stale snapshot files, refreshes `vertical-slice.json` and production art, records the source Git revision, and performs a Release build. It rejects a dirty `2dTD` source tree by default so `SOURCE_REVISION.txt` stays reproducible.
+
+Useful validation modes:
+
+```bash
+# Show what would change without modifying the Web repository.
+./scripts/sync-from-2dtd.sh --dry-run --allow-dirty --no-build
+
+# After a clean source snapshot has been synchronized, prove there is no drift.
+./scripts/sync-from-2dtd.sh --verify-only
+```
+
+`--allow-dirty` is intended only for local preview work; snapshots produced that way are explicitly marked as non-reproducible in `SOURCE_REVISION.txt`. Godot `.import` metadata, build output, and other host-only files are excluded from the Web snapshot.
