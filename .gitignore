@@ -6,3 +6,5 @@ local-preview.png
 local-running.png
 local-debug.png
 publish/
+
+*.png.import
