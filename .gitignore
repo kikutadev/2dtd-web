@@ -8,3 +8,4 @@ local-debug.png
 publish/
 
 *.png.import
+live-*.png
