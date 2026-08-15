@@ -38,7 +38,7 @@ public sealed class DungeonStaticFileService
         for (var x = 0; x < state.Width; x++)
         {
             var p = new GridPoint(x, y);
-            if (state.GetTile(p) == TileKind.Passage) passages.Add(new StaticPointFile(x, y));
+            if (state.GetTile(p) == TileKind.Passage && !state.IsIngress(p)) passages.Add(new StaticPointFile(x, y));
         }
 
         var rooms = state.Rooms
@@ -64,7 +64,9 @@ public sealed class DungeonStaticFileService
             description,
             new BoardProfileFile(profile.Id, profile.Width, profile.Height,
                 new StaticPointFile(profile.Entrance.X, profile.Entrance.Y),
-                new StaticPointFile(profile.Core.X, profile.Core.Y)),
+                new StaticPointFile(profile.Core.X, profile.Core.Y),
+                profile.IngressCells.Select(x => new StaticPointFile(x.X, x.Y)).ToArray(),
+                profile.EntranceTypeId),
             new BlueprintConstructionFile(passages, rooms, traps, guards, facilities));
     }
 

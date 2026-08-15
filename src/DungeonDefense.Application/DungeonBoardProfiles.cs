@@ -11,6 +11,8 @@ public sealed record DungeonBoardProfile(
     int Height,
     GridPoint Entrance,
     GridPoint Core,
+    IReadOnlyList<GridPoint> IngressCells,
+    string EntranceTypeId,
     Func<DungeonState> CreateBase);
 
 public static class DungeonBoardProfiles
@@ -27,6 +29,8 @@ public static class DungeonBoardProfiles
         12, 7,
         new GridPoint(0, 3),
         new GridPoint(11, 3),
+        [new GridPoint(0,3), new GridPoint(1,3)],
+        "entrance.breached_wall",
         DungeonFactory.CreateDefenseSliceDungeon);
 
     public static readonly DungeonBoardProfile PillaredCrypt = new(
@@ -36,6 +40,8 @@ public static class DungeonBoardProfiles
         12, 7,
         new GridPoint(0, 2),
         new GridPoint(11, 4),
+        [new GridPoint(0,2), new GridPoint(1,2)],
+        "entrance.crypt_gate",
         DungeonFactory.CreatePillaredCryptDungeon);
 
     public static readonly DungeonBoardProfile DeepCrypt = new(
@@ -45,6 +51,8 @@ public static class DungeonBoardProfiles
         13, 8,
         new GridPoint(0, 3),
         new GridPoint(12, 3),
+        [new GridPoint(0,3), new GridPoint(1,3)],
+        "entrance.narrow_crypt_gate",
         DungeonFactory.CreateDeepCryptDungeon);
 
     public static readonly DungeonBoardProfile ManaFault = new(
@@ -54,6 +62,8 @@ public static class DungeonBoardProfiles
         13, 8,
         new GridPoint(0, 5),
         new GridPoint(12, 2),
+        [new GridPoint(0,5), new GridPoint(1,5), new GridPoint(2,5)],
+        "entrance.ritual_portal",
         DungeonFactory.CreateManaFaultDungeon);
 
     public static IReadOnlyList<DungeonBoardProfile> All { get; } = [DefenseSlice, PillaredCrypt, DeepCrypt, ManaFault];
@@ -70,5 +80,7 @@ public static class DungeonBoardProfiles
            && profile.Width == file.Width
            && profile.Height == file.Height
            && profile.Entrance == new GridPoint(file.Entrance.X, file.Entrance.Y)
-           && profile.Core == new GridPoint(file.Core.X, file.Core.Y);
+           && profile.Core == new GridPoint(file.Core.X, file.Core.Y)
+           && (file.Ingress is null || profile.IngressCells.SequenceEqual(file.Ingress.Select(x => new GridPoint(x.X, x.Y))))
+           && (file.EntranceTypeId is null || string.Equals(profile.EntranceTypeId, file.EntranceTypeId, StringComparison.Ordinal));
 }

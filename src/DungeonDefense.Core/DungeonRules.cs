@@ -9,10 +9,17 @@ public static class DungeonPathfinder
 {
     public static IReadOnlyList<GridPoint> FindRoute(DungeonState state)
     {
+        var prefix = state.Ingress.OrderedCells;
+        if (prefix.Count == 0 || prefix[0] != state.Entrance) return [];
+        for (var i = 1; i < prefix.Count; i++)
+            if (!state.CanTraverse(prefix[i - 1], prefix[i])) return [];
+
+        var start = prefix[^1];
+        var blockedPrefix = prefix.Take(Math.Max(0, prefix.Count - 1)).ToHashSet();
         var queue = new Queue<GridPoint>();
         var cameFrom = new Dictionary<GridPoint, GridPoint?>();
-        queue.Enqueue(state.Entrance);
-        cameFrom[state.Entrance] = null;
+        queue.Enqueue(start);
+        cameFrom[start] = null;
 
         while (queue.Count > 0)
         {
@@ -20,22 +27,22 @@ public static class DungeonPathfinder
             if (current == state.Core) break;
             foreach (var next in GridGeometry.NeighborsNorthEastSouthWest(current))
             {
-                if (!state.InBounds(next) || !state.CanTraverse(current, next) || cameFrom.ContainsKey(next)) continue;
+                if (blockedPrefix.Contains(next) || !state.InBounds(next) || !state.CanTraverse(current, next) || cameFrom.ContainsKey(next)) continue;
                 cameFrom[next] = current;
                 queue.Enqueue(next);
             }
         }
 
         if (!cameFrom.ContainsKey(state.Core)) return [];
-        var route = new List<GridPoint>();
+        var suffix = new List<GridPoint>();
         GridPoint? cursor = state.Core;
-        while (cursor is { } p)
+        while (cursor is { } point)
         {
-            route.Add(p);
-            cursor = cameFrom[p];
+            suffix.Add(point);
+            cursor = cameFrom[point];
         }
-        route.Reverse();
-        return route;
+        suffix.Reverse();
+        return prefix.Take(prefix.Count - 1).Concat(suffix).ToArray();
     }
 }
 
@@ -113,6 +120,7 @@ public static class DungeonEditorRules
         if (cells.Count == 0) return EditResult.Failed(state, "No cells supplied.");
         foreach (var p in cells)
         {
+            if (state.IsIngress(p)) return EditResult.Failed(state, $"Ingress geometry cannot be closed: {p}");
             if (state.GetTile(p) != TileKind.Passage) return EditResult.Failed(state, $"Only passage can be closed: {p}");
             if (state.HasTerrain(p, TerrainFeatureKind.NaturalCavern)) return EditResult.Failed(state, $"Natural cavern cannot be closed: {p}");
             if (state.Traps.Any(x => x.Position == p) || state.Guards.Any(x => x.Position == p))
@@ -173,7 +181,7 @@ public static class DungeonEditorRules
 
     public static EditResult PlaceTrap(DungeonState state, string instanceId, string definitionId, GridPoint position, int capacityCost)
     {
-        if (!state.IsWalkable(position) || position == state.Entrance || position == state.Core) return EditResult.Failed(state, "Trap requires a normal walkable cell.");
+        if (!state.IsWalkable(position) || state.IsIngress(position) || position == state.Core) return EditResult.Failed(state, "Trap requires a normal non-Ingress walkable cell.");
         if (state.Traps.Any(x => x.Position == position)) return EditResult.Failed(state, "Trap slot occupied.");
         var next = state.Clone();
         next.Traps.Add(new PlacedTrap(instanceId, definitionId, position, capacityCost));
@@ -192,7 +200,7 @@ public static class DungeonEditorRules
 
     public static EditResult PlaceGuard(DungeonState state, string instanceId, string definitionId, GridPoint position, int capacityCost, int guardZoneRadius)
     {
-        if (!state.IsWalkable(position) || position == state.Entrance || position == state.Core) return EditResult.Failed(state, "Guard requires a normal walkable cell.");
+        if (!state.IsWalkable(position) || state.IsIngress(position) || position == state.Core) return EditResult.Failed(state, "Guard requires a normal non-Ingress walkable cell.");
         if (state.HasTerrain(position, TerrainFeatureKind.NarrowRock)) return EditResult.Failed(state, "Guard cannot hold a narrow-rock cell.");
         if (state.Guards.Any(x => x.Position == position)) return EditResult.Failed(state, "Guard slot occupied.");
         var next = state.Clone();

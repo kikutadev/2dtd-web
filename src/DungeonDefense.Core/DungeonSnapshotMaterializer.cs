@@ -17,7 +17,8 @@ public static class DungeonSnapshotMaterializer
         {
             if (!candidate.InBounds(p)) return EditResult.Failed(profileBase, $"Passage out of bounds: {p}");
             if (!candidate.IsBuildable(p)) return EditResult.Failed(profileBase, $"Passage overlaps locked terrain: {p}");
-            if (p == candidate.Entrance || p == candidate.Core) return EditResult.Failed(profileBase, $"Passage overlaps immutable cell: {p}");
+            if (candidate.IsIngress(p)) continue; // Legacy blueprints may list profile-owned Ingress passages.
+            if (p == candidate.Core) return EditResult.Failed(profileBase, $"Passage overlaps immutable cell: {p}");
             candidate.SetTileInternal(p, TileKind.Passage);
         }
 
@@ -30,7 +31,7 @@ public static class DungeonSnapshotMaterializer
             {
                 if (!candidate.InBounds(p)) return EditResult.Failed(profileBase, $"Room out of bounds: {room.InstanceId} at {p}");
                 if (!candidate.IsBuildable(p) || candidate.HasTerrain(p, TerrainFeatureKind.NarrowRock)) return EditResult.Failed(profileBase, $"Room overlaps locked/narrow terrain: {room.InstanceId} at {p}");
-                if (p == candidate.Entrance || p == candidate.Core || passageSet.Contains(p) || !occupiedRoomCells.Add(p))
+                if (candidate.IsIngress(p) || p == candidate.Core || passageSet.Contains(p) || !occupiedRoomCells.Add(p))
                     return EditResult.Failed(profileBase, $"Invalid room footprint: {room.InstanceId} at {p}");
             }
             foreach (var p in cells) candidate.SetTileInternal(p, TileKind.Room);
@@ -47,7 +48,7 @@ public static class DungeonSnapshotMaterializer
 
         foreach (var trap in traps)
         {
-            if (!candidate.IsWalkable(trap.Position) || trap.Position == candidate.Entrance || trap.Position == candidate.Core)
+            if (!candidate.IsWalkable(trap.Position) || candidate.IsIngress(trap.Position) || trap.Position == candidate.Core)
                 return EditResult.Failed(profileBase, $"Invalid trap placement: {trap.InstanceId}");
             if (candidate.Traps.Any(x => x.Position == trap.Position)) return EditResult.Failed(profileBase, $"Trap slot occupied: {trap.Position}");
             candidate.Traps.Add(trap);
@@ -55,7 +56,7 @@ public static class DungeonSnapshotMaterializer
 
         foreach (var guard in guards)
         {
-            if (!candidate.IsWalkable(guard.Position) || guard.Position == candidate.Entrance || guard.Position == candidate.Core
+            if (!candidate.IsWalkable(guard.Position) || candidate.IsIngress(guard.Position) || guard.Position == candidate.Core
                 || candidate.HasTerrain(guard.Position, TerrainFeatureKind.NarrowRock))
                 return EditResult.Failed(profileBase, $"Invalid guard placement: {guard.InstanceId}");
             if (candidate.Guards.Any(x => x.Position == guard.Position)) return EditResult.Failed(profileBase, $"Guard slot occupied: {guard.Position}");

@@ -121,8 +121,20 @@ else
                                         }
                                     </div>
                                 }
-                                @foreach (var projectile in _demo.VisualState.Projectiles)
+                                <svg class="beam-layer" viewBox="0 0 @Board.Width @Board.Height" preserveAspectRatio="none">
+                                    @foreach (var beam in _demo.VisualState.Projectiles.Where(x => x.Trajectory == ProjectileTrajectoryKind.Beam))
+                                    {
+                                        <line x1="@(beam.From.X + 0.5f)" y1="@(beam.From.Y + 0.5f)"
+                                              x2="@(beam.To.X + 0.5f)" y2="@(beam.To.Y + 0.5f)"
+                                              vector-effect="non-scaling-stroke" />
+                                    }
+                                </svg>
+                                @foreach (var projectile in _demo.VisualState.Projectiles.Where(x => x.Trajectory != ProjectileTrajectoryKind.Beam))
                                 {
+                                    @if (projectile.ProjectileHeight > 0.01f)
+                                    {
+                                        <span class="projectile-shadow" style="@ProjectileGroundStyle(projectile)"></span>
+                                    }
                                     <span class="projectile" style="@ProjectileStyle(projectile)"></span>
                                 }
                             </div>
@@ -408,10 +420,17 @@ else
 
     private string BuildCellClass(GridPoint point)
     {
-        if (!IsBuilding || _build is null) return string.Empty;
-        if (_removeMode) return HasRemovable(point) ? "remove-target" : string.Empty;
-        if (_selectedDefinitionId is null) return string.Empty;
-        return _build.PreviewPlacement(_selectedDefinitionId, point.X, point.Y, _rotated).Success ? "build-valid" : "build-invalid";
+        var classes = new List<string>(2);
+        if (Board.IsIngress(point)) classes.Add("ingress");
+        if (!IsBuilding || _build is null) return string.Join(' ', classes);
+        if (_removeMode)
+        {
+            if (HasRemovable(point)) classes.Add("remove-target");
+            return string.Join(' ', classes);
+        }
+        if (_selectedDefinitionId is null) return string.Join(' ', classes);
+        classes.Add(_build.PreviewPlacement(_selectedDefinitionId, point.X, point.Y, _rotated).Success ? "build-valid" : "build-invalid");
+        return string.Join(' ', classes);
     }
 
     private bool HasRemovable(GridPoint point)
@@ -465,6 +484,14 @@ else
     }
 
     private string ProjectileStyle(CombatProjectileVisualState projectile)
+    {
+        var point = projectile.Position;
+        var left = ((point.X + 0.5) * 100.0) / Board.Width;
+        var top = ((point.Y + 0.5 - projectile.ProjectileHeight) * 100.0) / Board.Height;
+        return FormattableString.Invariant($"left:{left:0.###}%;top:{top:0.###}%;");
+    }
+
+    private string ProjectileGroundStyle(CombatProjectileVisualState projectile)
     {
         var point = projectile.Position;
         var left = ((point.X + 0.5) * 100.0) / Board.Width;

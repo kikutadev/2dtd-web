@@ -11,7 +11,9 @@ public sealed record BoardProfileFile(
     [property: JsonPropertyName("width")] int Width,
     [property: JsonPropertyName("height")] int Height,
     [property: JsonPropertyName("entrance")] StaticPointFile Entrance,
-    [property: JsonPropertyName("core")] StaticPointFile Core);
+    [property: JsonPropertyName("core")] StaticPointFile Core,
+    [property: JsonPropertyName("ingress")] IReadOnlyList<StaticPointFile>? Ingress = null,
+    [property: JsonPropertyName("entrance_type_id")] string? EntranceTypeId = null);
 
 public sealed record BlueprintRoomFile(
     [property: JsonPropertyName("instance_id")] string InstanceId,

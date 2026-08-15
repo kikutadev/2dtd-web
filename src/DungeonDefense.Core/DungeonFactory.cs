@@ -4,14 +4,14 @@ public static class DungeonFactory
 {
     public static DungeonState CreateDefenseSliceDungeon()
     {
-        var state = new DungeonState(12, 7, new GridPoint(0, 3), new GridPoint(11, 3), 160);
+        var state = new DungeonState(12, 7, new GridPoint(0, 3), new GridPoint(11, 3), 160, new DungeonIngressGeometry("entrance.breached_wall", [new GridPoint(0,3), new GridPoint(1,3)]));
         for (var x = 1; x <= 10; x++) state.SetTileInternal(new GridPoint(x, 3), TileKind.Passage);
         return state;
     }
 
     public static DungeonState CreatePillaredCryptDungeon()
     {
-        var state = new DungeonState(12, 7, new GridPoint(0, 2), new GridPoint(11, 4), 160);
+        var state = new DungeonState(12, 7, new GridPoint(0, 2), new GridPoint(11, 4), 160, new DungeonIngressGeometry("entrance.crypt_gate", [new GridPoint(0,2), new GridPoint(1,2)]));
         foreach (var point in new[]
         {
             new GridPoint(1,2), new GridPoint(2,2), new GridPoint(3,2), new GridPoint(4,2),
@@ -33,7 +33,7 @@ public static class DungeonFactory
 
     public static DungeonState CreateDeepCryptDungeon()
     {
-        var state = new DungeonState(13, 8, new GridPoint(0, 3), new GridPoint(12, 3), 160);
+        var state = new DungeonState(13, 8, new GridPoint(0, 3), new GridPoint(12, 3), 160, new DungeonIngressGeometry("entrance.narrow_crypt_gate", [new GridPoint(0,3), new GridPoint(1,3)]));
         foreach (var point in new[]
         {
             new GridPoint(1,3), new GridPoint(2,3),
@@ -59,7 +59,7 @@ public static class DungeonFactory
 
     public static DungeonState CreateManaFaultDungeon()
     {
-        var state = new DungeonState(13, 8, new GridPoint(0, 5), new GridPoint(12, 2), 160);
+        var state = new DungeonState(13, 8, new GridPoint(0, 5), new GridPoint(12, 2), 160, new DungeonIngressGeometry("entrance.ritual_portal", [new GridPoint(0,5), new GridPoint(1,5), new GridPoint(2,5)]));
         foreach (var point in new[]
         {
             new GridPoint(1,5), new GridPoint(2,5), new GridPoint(3,5), new GridPoint(4,5), new GridPoint(5,5),

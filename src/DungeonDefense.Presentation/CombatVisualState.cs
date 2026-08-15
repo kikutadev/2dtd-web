@@ -94,4 +94,6 @@ public sealed record CombatProjectileVisualState(
     PresentationPoint From,
     PresentationPoint To,
     PresentationPoint Position,
-    float Progress);
+    float Progress,
+    ProjectileTrajectoryKind Trajectory,
+    float ProjectileHeight);

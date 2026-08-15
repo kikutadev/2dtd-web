@@ -49,7 +49,7 @@ internal sealed class DefenseDemo
         Simulation = Session.StartDefense(_content, seed: 20260815);
         _autoBattle = Session.CreateAutoBattleController();
         _simulationAccumulatorSeconds = 0;
-        _presentation.SyncSnapshot(Simulation.Units, Simulation.CurrentCombatFloorId);
+        _presentation.SyncSnapshot(Simulation.Units, Simulation.CurrentCombatFloorId, Simulation.Route, Simulation.StaticActors);
         _eventCursor = Simulation.Events.Count;
     }
 
@@ -81,7 +81,7 @@ internal sealed class DefenseDemo
 
         if (stepped)
         {
-            _presentation.SyncSnapshot(simulation.Units, simulation.CurrentCombatFloorId);
+            _presentation.SyncSnapshot(simulation.Units, simulation.CurrentCombatFloorId, simulation.Route, simulation.StaticActors);
             var newEvents = simulation.Events.Skip(_eventCursor).ToArray();
             _eventCursor = simulation.Events.Count;
             foreach (var combatEvent in newEvents) _presentation.ConsumeEvent(combatEvent);

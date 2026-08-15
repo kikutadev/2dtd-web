@@ -9,7 +9,8 @@ public static class DungeonStateDigest
     {
         var builder = new StringBuilder();
         builder.Append(state.Width).Append('x').Append(state.Height).Append('|')
-            .Append(state.Entrance).Append('|').Append(state.Core).Append('|').Append(state.CapacityMax).Append('\n');
+            .Append(state.Entrance).Append('|').Append(state.Core).Append('|').Append(state.CapacityMax).Append('|')
+            .Append(state.Ingress.EntranceTypeId).Append('|').AppendJoin(',', state.Ingress.OrderedCells).Append('\n');
         for (var y = 0; y < state.Height; y++)
         {
             for (var x = 0; x < state.Width; x++) builder.Append((int)state.GetTile(new GridPoint(x, y)));

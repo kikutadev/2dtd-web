@@ -22,7 +22,7 @@ public sealed class DefenseAutoBattleController
         var floorId = simulation.CurrentCombatFloorId;
         var invaders = simulation.Units
             .Where(x => x.Team == Team.Invader && x.Alive && x.FloorId == floorId)
-            .OrderByDescending(x => x.PathIndex)
+            .OrderByDescending(x => x.RouteProgressUnits ?? RouteProgress.AtCellCenter(Math.Max(0, x.PathIndex)).Units)
             .ThenBy(x => x.EntityId, StringComparer.Ordinal)
             .ToArray();
         if (invaders.Length == 0) return false;
@@ -40,11 +40,11 @@ public sealed class DefenseAutoBattleController
         var route = simulation.Routes[floorId];
         foreach (var target in invaders)
         {
-            if (target.PathIndex <= 0) continue;
-            var landingIndex = Math.Max(0, target.PathIndex - Math.Max(1, spell.Magnitude));
-            var landing = route[landingIndex];
+            if (target.PathIndex <= 0 && (target.RouteProgressUnits ?? 0) <= 0) continue;
+            var landing = simulation.PreviewPushLanding(target.EntityId, spell.Magnitude, floorId);
+            if (landing is null) continue;
             var readyTrap = floor.Board.Traps
-                .Where(x => x.Position == landing)
+                .Where(x => x.Position == landing.Value)
                 .OrderBy(x => x.InstanceId, StringComparer.Ordinal)
                 .FirstOrDefault(x => simulation.TrapCooldownRemaining(x.InstanceId, floorId) == 0);
             if (readyTrap is null) continue;
@@ -66,7 +66,8 @@ public sealed class DefenseAutoBattleController
             {
                 Position = position,
                 Count = invaders.Count(x => x.Position.ManhattanDistance(position) <= spell.Radius),
-                Deepest = invaders.Where(x => x.Position.ManhattanDistance(position) <= spell.Radius).Max(x => x.PathIndex),
+                Deepest = invaders.Where(x => x.Position.ManhattanDistance(position) <= spell.Radius)
+                    .Max(x => x.RouteProgressUnits ?? RouteProgress.AtCellCenter(Math.Max(0, x.PathIndex)).Units),
             })
             .OrderByDescending(x => x.Count)
             .ThenByDescending(x => x.Deepest)
@@ -75,7 +76,7 @@ public sealed class DefenseAutoBattleController
             .First();
 
         var route = simulation.Routes[floorId];
-        var imminentBreach = candidates.Deepest >= Math.Max(0, route.Count - 2);
+        var imminentBreach = candidates.Deepest >= RouteProgress.AtCellCenter(Math.Max(0, route.Count - 2)).Units;
         if (candidates.Count < 2 && !imminentBreach) return false;
         return simulation.QueueSpell(spell.Id, candidates.Position, floorId: floorId).Success;
     }

@@ -62,7 +62,8 @@ public sealed record UnitDefinition(
     int MoveIntervalTicks,
     bool Blocks,
     int GuardZoneRadius,
-    int HealPower = 0);
+    int HealPower = 0,
+    BodySizeClass BodySizeClass = BodySizeClass.Standard);
 
 public sealed record TrapDefinition(
     string Id,

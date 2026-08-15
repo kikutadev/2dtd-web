@@ -84,7 +84,7 @@ public sealed class DungeonState
     private readonly Dictionary<string, DungeonSector> _sectors = new(StringComparer.Ordinal);
     private readonly Dictionary<string, DungeonTerrainFeature> _terrainFeatures = new(StringComparer.Ordinal);
 
-    public DungeonState(int width, int height, GridPoint entrance, GridPoint core, int capacityMax)
+    public DungeonState(int width, int height, GridPoint entrance, GridPoint core, int capacityMax, DungeonIngressGeometry? ingressGeometry = null)
     {
         if (width < 3 || height < 3) throw new ArgumentOutOfRangeException(nameof(width));
         Width = width;
@@ -92,11 +92,13 @@ public sealed class DungeonState
         Entrance = entrance;
         Core = core;
         CapacityMax = capacityMax;
+        Ingress = (ingressGeometry ?? DungeonIngressGeometry.SingleCell(entrance)).Validate(width, height, entrance, core);
         _tiles = new TileKind[width, height];
         for (var y = 0; y < height; y++)
         for (var x = 0; x < width; x++)
             _tiles[x, y] = TileKind.Bedrock;
         SetTileInternal(entrance, TileKind.Entrance);
+        foreach (var ingressCell in Ingress.OrderedCells.Skip(1)) SetTileInternal(ingressCell, TileKind.Passage);
         SetTileInternal(core, TileKind.Core);
     }
 
@@ -107,6 +109,7 @@ public sealed class DungeonState
         Entrance = source.Entrance;
         Core = source.Core;
         CapacityMax = source.CapacityMax;
+        Ingress = source.Ingress with { OrderedCells = source.Ingress.OrderedCells.ToArray() };
         _tiles = (TileKind[,])source._tiles.Clone();
         foreach (var (id, sector) in source._sectors)
             _sectors[id] = sector with { Cells = sector.Cells.ToHashSet() };
@@ -123,6 +126,7 @@ public sealed class DungeonState
     public GridPoint Entrance { get; }
     public GridPoint Core { get; }
     public int CapacityMax { get; }
+    public DungeonIngressGeometry Ingress { get; }
     public IReadOnlyCollection<DungeonSector> Sectors => _sectors.Values.OrderBy(x => x.Id, StringComparer.Ordinal).ToArray();
     public IReadOnlyCollection<DungeonTerrainFeature> TerrainFeatures => _terrainFeatures.Values.OrderBy(x => x.Id, StringComparer.Ordinal).ToArray();
     public List<PlacedRoom> Rooms { get; } = [];
@@ -137,7 +141,7 @@ public sealed class DungeonState
             var passage = 0;
             for (var y = 0; y < Height; y++)
             for (var x = 0; x < Width; x++)
-                if (_tiles[x, y] == TileKind.Passage && !HasTerrain(new GridPoint(x, y), TerrainFeatureKind.NaturalCavern)) passage++;
+                if (_tiles[x, y] == TileKind.Passage && !IsIngress(new GridPoint(x, y)) && !HasTerrain(new GridPoint(x, y), TerrainFeatureKind.NaturalCavern)) passage++;
             return passage + Rooms.Sum(x => x.CapacityCost) + Traps.Sum(x => x.CapacityCost)
                 + Facilities.Sum(x => x.CapacityCost) + Guards.Sum(x => x.CapacityCost);
         }
@@ -149,7 +153,7 @@ public sealed class DungeonState
     public DungeonState WithCapacityMax(int capacityMax)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacityMax);
-        var clone = new DungeonState(Width, Height, Entrance, Core, capacityMax);
+        var clone = new DungeonState(Width, Height, Entrance, Core, capacityMax, Ingress);
         for (var y = 0; y < Height; y++)
         for (var x = 0; x < Width; x++)
             clone._tiles[x, y] = _tiles[x, y];
@@ -162,6 +166,7 @@ public sealed class DungeonState
         return clone;
     }
     public bool InBounds(GridPoint point) => point.X >= 0 && point.X < Width && point.Y >= 0 && point.Y < Height;
+    public bool IsIngress(GridPoint point) => Ingress.Contains(point);
     public TileKind GetTile(GridPoint point) => InBounds(point) ? _tiles[point.X, point.Y] : TileKind.Bedrock;
     public bool IsWalkable(GridPoint point) => InBounds(point) && GetTile(point) is TileKind.Passage or TileKind.Room or TileKind.Entrance or TileKind.Core;
     public bool IsBuildable(GridPoint point)
@@ -191,13 +196,13 @@ public sealed class DungeonState
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         var cellSet = cells.ToHashSet();
-        if (cellSet.Any(x => !InBounds(x) || x == Entrance || x == Core)) throw new ArgumentOutOfRangeException(nameof(cells));
+        if (cellSet.Any(x => !InBounds(x) || IsIngress(x) || x == Core)) throw new ArgumentOutOfRangeException(nameof(cells));
         _terrainFeatures[id] = new DungeonTerrainFeature(id, kind, cellSet, blocksConstruction);
     }
 
     internal DungeonState CreateBlankForConstruction()
     {
-        var blank = new DungeonState(Width, Height, Entrance, Core, CapacityMax);
+        var blank = new DungeonState(Width, Height, Entrance, Core, CapacityMax, Ingress);
         foreach (var (id, sector) in _sectors) blank._sectors[id] = sector with { Cells = sector.Cells.ToHashSet() };
         foreach (var (id, feature) in _terrainFeatures) blank._terrainFeatures[id] = feature with { Cells = feature.Cells.ToHashSet() };
         foreach (var feature in blank._terrainFeatures.Values.Where(x => x.Kind == TerrainFeatureKind.NaturalCavern))
@@ -240,6 +245,7 @@ public sealed class DungeonState
                 {
                     TileKind.Bedrock when !IsBuildable(p) => 'X',
                     TileKind.Bedrock => '#',
+                    TileKind.Passage when IsIngress(p) => 'i',
                     TileKind.Passage => '.',
                     TileKind.Room => 'r',
                     TileKind.Entrance => 'E',

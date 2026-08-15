@@ -27,6 +27,7 @@ h1 { color: #7fc0c6; font-size: clamp(1.15rem, 2.4vw, 1.65rem); margin: .15rem 0
 .board { position: relative; width: min(100%, 850px); margin: 0 auto; display: grid; aspect-ratio: 12 / 7; min-width: 520px; box-shadow: 0 12px 35px rgba(0,0,0,.35); }
 .cell { position: relative; min-width: 0; min-height: 0; background-size: cover; background-position: center; image-rendering: pixelated; }
 .cell::after { content: ""; position: absolute; inset: 0; border: 1px solid rgba(255,255,255,.018); pointer-events: none; }
+.cell.ingress::before { content: ""; position: absolute; inset: 7%; z-index: 3; border: 1px solid rgba(232,163,75,.58); background: rgba(232,163,75,.07); box-shadow: inset 0 0 9px rgba(232,163,75,.09); pointer-events: none; }
 .object, .unit { position: absolute; inset: 4%; width: 92%; height: 92%; object-fit: contain; image-rendering: pixelated; filter: drop-shadow(0 2px 2px rgba(0,0,0,.6)); }
 .object.fixture { inset: 12%; width: 76%; height: 76%; opacity: .94; }
 .object.core { inset: -10%; width: 120%; height: 120%; z-index: 2; }
@@ -36,6 +37,9 @@ h1 { color: #7fc0c6; font-size: clamp(1.15rem, 2.4vw, 1.65rem); margin: .15rem 0
 .unit-wrap.dungeon .unit { filter: drop-shadow(0 0 4px rgba(90,185,196,.35)); }
 .hp { position: absolute; z-index: 8; left: 18%; right: 18%; bottom: 6%; height: 4px; background: #2c3030; border-radius: 4px; overflow: hidden; }
 .hp span { display: block; height: 100%; background: #6a9b5b; }
+.beam-layer { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 6; overflow: visible; }
+.beam-layer line { stroke: #83d7df; stroke-width: 2.2px; opacity: .78; filter: drop-shadow(0 0 3px rgba(90,185,196,.72)); }
+.projectile-shadow { position: absolute; z-index: 6; width: 7px; height: 3px; border-radius: 50%; background: rgba(0,0,0,.46); transform: translate(-50%, -50%); }
 .projectile { position: absolute; z-index: 7; width: 7px; height: 7px; border-radius: 50%; background: #f2e7c8; box-shadow: 0 0 8px rgba(232,163,75,.78); transform: translate(-50%, -50%); }
 .timeline { height: 5px; background: #172026; }
 .timeline span { display: block; height: 100%; background: #c4752b; transition: width .1s linear; }

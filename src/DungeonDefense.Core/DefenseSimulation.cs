@@ -42,7 +42,15 @@ public sealed record DefenseEvent(
     GridPoint? Position = null,
     int Amount = 0,
     string? Detail = null,
-    string FloorId = "floor.001");
+    string FloorId = "floor.001",
+    GridPoint? SourcePosition = null,
+    string? SourceDefinitionId = null);
+
+public sealed record DefenseStaticActorSnapshot(
+    string RuntimeActorId,
+    string DefinitionId,
+    string FloorId,
+    GridPoint Anchor);
 
 public sealed record UnitSnapshot(
     string EntityId,
@@ -55,7 +63,8 @@ public sealed record UnitSnapshot(
     bool Alive,
     string? TargetEntityId,
     string FloorId = "floor.001",
-    bool AwaitingFloorTransition = false);
+    bool AwaitingFloorTransition = false,
+    long? RouteProgressUnits = null);
 
 public sealed record SpellCastResult(bool Success, string? Error);
 
@@ -69,6 +78,10 @@ internal sealed class RuntimeUnit
     public required int Hp { get; set; }
     public required int MaxHp { get; init; }
     public required int PathIndex { get; set; }
+    public required long RouteProgressUnits { get; set; }
+    public int MoveRemainder { get; set; }
+    public bool Admitted { get; set; } = true;
+    public bool TrafficBlockedLastTick { get; set; }
     public required int NextMoveTick { get; set; }
     public required int NextAttackTick { get; set; }
     public required GridPoint HomePosition { get; init; }
@@ -78,7 +91,7 @@ internal sealed class RuntimeUnit
     public bool DeathLogged { get; set; }
     public int BossRouteBreakUses { get; set; }
     public int? BossRouteBreakReadyTick { get; set; }
-    public int? BossRouteBreakLandingIndex { get; set; }
+    public long? BossRouteBreakLandingProgressUnits { get; set; }
     public Dictionary<StatusKind, StatusEffect> Statuses { get; } = [];
     public bool Alive => Hp > 0;
 }
@@ -106,6 +119,13 @@ internal sealed class FloorRuntime
 
 internal sealed record QueuedSpell(string SpellId, GridPoint Target, string? TargetEntityId, string FloorId);
 
+internal sealed record PendingAdmission(
+    RuntimeUnit Unit,
+    int ReleaseTick,
+    int GroupOrder,
+    int Ordinal,
+    string Reason);
+
 public sealed class DefenseSimulation
 {
     public const int TicksPerSecond = 20;
@@ -122,6 +142,9 @@ public sealed class DefenseSimulation
     private readonly Dictionary<string, string?> _facilityTargets = new(StringComparer.Ordinal);
     private readonly Dictionary<string, int> _spellReadyTick = new(StringComparer.Ordinal);
     private readonly List<QueuedSpell> _queuedSpells = [];
+    private readonly List<PendingAdmission> _pendingAdmissions = [];
+    private readonly Dictionary<(string FloorId, GridPoint Position), int> _trafficBlockedTicks = [];
+    private readonly Dictionary<(string FloorId, GridPoint Position), int> _trafficWaitCounts = [];
     private readonly Dictionary<string, List<GridPoint>> _enteredCells = new(StringComparer.Ordinal);
     private int[] _spawnCounts;
     private int _waveStartTick;
@@ -177,6 +200,9 @@ public sealed class DefenseSimulation
                     Hp = maxHp,
                     MaxHp = maxHp,
                     PathIndex = floor.RouteProgress.GetValueOrDefault(guard.Position, -1),
+                    RouteProgressUnits = floor.RouteProgress.TryGetValue(guard.Position, out var guardRouteIndex)
+                        ? RouteProgress.AtCellCenter(guardRouteIndex).Units
+                        : -1,
                     NextMoveTick = 0,
                     NextAttackTick = 0,
                 });
@@ -204,13 +230,23 @@ public sealed class DefenseSimulation
     public IReadOnlyDictionary<string, SpellDefinition> Spells => _content.Spells;
     public DefenseOutcome Outcome { get; private set; } = DefenseOutcome.Running;
     public List<DefenseEvent> Events { get; } = [];
+    public IReadOnlyList<DefenseStaticActorSnapshot> StaticActors => CurrentFloor.Board.Facilities
+        .Select(x => new DefenseStaticActorSnapshot(
+            DisplayPlacementId(CurrentFloor.Id, x.InstanceId),
+            x.DefinitionId,
+            CurrentFloor.Id,
+            x.Position))
+        .OrderBy(x => x.RuntimeActorId, StringComparer.Ordinal)
+        .ToArray();
+
     public IReadOnlyList<GridPoint> Route => CurrentFloor.Route;
     public IReadOnlyDictionary<string, IReadOnlyList<GridPoint>> Routes => _floors.ToDictionary(x => x.Id, x => (IReadOnlyList<GridPoint>)x.Route, StringComparer.Ordinal);
     public IReadOnlyDictionary<string, int> FloorDepths => _floors.ToDictionary(x => x.Id, x => x.Depth, StringComparer.Ordinal);
 
     public IReadOnlyList<UnitSnapshot> Units => _units
         .OrderBy(x => x.EntityId, StringComparer.Ordinal)
-        .Select(x => new UnitSnapshot(x.EntityId, x.Definition.Id, x.Definition.Team, x.Position, x.Hp, x.MaxHp, x.PathIndex, x.Alive, x.TargetEntityId, x.FloorId, x.AwaitingFloorTransition))
+        .Where(x => x.Admitted || x.AwaitingFloorTransition || !x.Alive)
+        .Select(x => new UnitSnapshot(x.EntityId, x.Definition.Id, x.Definition.Team, x.Position, x.Hp, x.MaxHp, x.PathIndex, x.Alive, x.TargetEntityId, x.FloorId, x.AwaitingFloorTransition, x.Definition.Team == Team.Invader ? x.RouteProgressUnits : null))
         .ToArray();
 
     private FloorRuntime CurrentFloor => _floors[_currentFloorIndex];
@@ -222,6 +258,16 @@ public sealed class DefenseSimulation
         var unit = _units.SingleOrDefault(x => x.EntityId == entityId);
         return unit is not null && unit.Statuses.TryGetValue(kind, out var status) ? status.RemainingTicks : 0;
     }
+
+    public IReadOnlyDictionary<GridPoint, int> TrafficBlockedTicksForFloor(string floorId)
+        => _trafficBlockedTicks
+            .Where(x => string.Equals(x.Key.FloorId, floorId, StringComparison.Ordinal))
+            .ToDictionary(x => x.Key.Position, x => x.Value);
+
+    public IReadOnlyDictionary<GridPoint, int> TrafficWaitCountsForFloor(string floorId)
+        => _trafficWaitCounts
+            .Where(x => string.Equals(x.Key.FloorId, floorId, StringComparison.Ordinal))
+            .ToDictionary(x => x.Key.Position, x => x.Value);
 
     public int TrapCooldownRemaining(string trapInstanceId, string? floorId = null)
     {
@@ -248,6 +294,7 @@ public sealed class DefenseSimulation
         _enteredCells.Clear();
         ProcessCommands();
         SpawnPhase();
+        AdmissionPhase();
         MovementPhase();
         TrapPhase();
         TargetPhase();
@@ -272,7 +319,8 @@ public sealed class DefenseSimulation
         foreach (var e in Events)
         {
             payload.Append(e.Tick).Append('|').Append(e.Type).Append('|').Append(e.ActorId).Append('|')
-                .Append(e.TargetId).Append('|').Append(e.Position).Append('|').Append(e.Amount).Append('|').Append(e.Detail).Append('|').Append(e.FloorId).AppendLine();
+                .Append(e.TargetId).Append('|').Append(e.Position).Append('|').Append(e.Amount).Append('|').Append(e.Detail).Append('|').Append(e.FloorId).Append('|')
+                .Append(e.SourcePosition).Append('|').Append(e.SourceDefinitionId).AppendLine();
         }
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payload.ToString()))).ToLowerInvariant();
     }
@@ -304,16 +352,8 @@ public sealed class DefenseSimulation
                     var room = floor.Board.RoomAt(target.Position);
                     var terrainBonus = floor.Board.HasTerrain(target.Position, TerrainFeatureKind.ManaVein) ? 1 : 0;
                     var magnitude = Math.Max(1, spell.Magnitude + (room?.PushMagnitudeBonus ?? 0) + terrainBonus);
-                    var nextIndex = Math.Max(0, target.PathIndex - magnitude);
-                    if (nextIndex != target.PathIndex)
-                    {
-                        target.PathIndex = nextIndex;
-                        target.Position = floor.Route[nextIndex];
-                        target.AwaitingFloorTransition = false;
-                        target.CoreReachedLogged = false;
-                        RecordEntry(target.EntityId, target.Position);
-                        Events.Add(new DefenseEvent(Tick, DefenseEventType.Move, spell.Id, target.EntityId, target.Position, Detail: "push", FloorId: floor.Id));
-                    }
+                    var destination = ResolvePushDestinationProgress(target, magnitude, floor);
+                    ApplyForcedProgress(target, destination, floor, spell.Id, "push");
                 }
             }
         }
@@ -332,7 +372,8 @@ public sealed class DefenseSimulation
             var group = wave.SpawnGroups[i];
             while (_spawnCounts[i] < group.Count)
             {
-                var due = group.InitialDelayTicks + (_spawnCounts[i] * group.SpawnIntervalTicks);
+                var ordinal = _spawnCounts[i];
+                var due = group.InitialDelayTicks + (ordinal * group.SpawnIntervalTicks);
                 if (elapsed < due) break;
                 var definition = _content.Units[group.UnitId];
                 var entity = new RuntimeUnit
@@ -346,45 +387,65 @@ public sealed class DefenseSimulation
                     Hp = definition.MaxHp,
                     MaxHp = definition.MaxHp,
                     PathIndex = 0,
-                    NextMoveTick = Tick + Math.Max(1, definition.MoveIntervalTicks),
+                    RouteProgressUnits = 0,
+                    Admitted = false,
+                    NextMoveTick = Tick,
                     NextAttackTick = Tick,
                 };
-                _units.Add(entity);
                 _spawnCounts[i]++;
-                Events.Add(new DefenseEvent(Tick, DefenseEventType.Spawn, entity.EntityId, Position: entity.Position, Detail: entity.Definition.Id, FloorId: entity.FloorId));
-                Events.Add(new DefenseEvent(Tick, DefenseEventType.FloorEntered, entity.EntityId, Position: entity.Position, Detail: "spawn", FloorId: entity.FloorId));
+                _pendingAdmissions.Add(new PendingAdmission(entity, Tick, i, ordinal, "spawn"));
                 if (group.SpawnIntervalTicks > 0) break;
             }
         }
     }
 
+    private void AdmissionPhase()
+    {
+        while (true)
+        {
+            var pending = _pendingAdmissions
+                .Where(x => string.Equals(x.Unit.FloorId, CurrentFloor.Id, StringComparison.Ordinal) && x.ReleaseTick <= Tick)
+                .OrderBy(x => x.ReleaseTick)
+                .ThenBy(x => x.GroupOrder)
+                .ThenBy(x => x.Ordinal)
+                .ThenBy(x => x.Unit.EntityId, StringComparer.Ordinal)
+                .FirstOrDefault();
+            if (pending is null || !CanAdmitAtEntrance(pending.Unit, CurrentFloor)) break;
+
+            var unit = pending.Unit;
+            unit.Admitted = true;
+            unit.Position = CurrentFloor.Board.Entrance;
+            unit.PathIndex = 0;
+            unit.RouteProgressUnits = 0;
+            unit.MoveRemainder = 0;
+            unit.NextMoveTick = Tick + 1;
+            unit.TargetEntityId = null;
+            unit.AwaitingFloorTransition = false;
+            unit.CoreReachedLogged = false;
+            if (!_units.Contains(unit)) _units.Add(unit);
+            _pendingAdmissions.Remove(pending);
+
+            if (string.Equals(pending.Reason, "spawn", StringComparison.Ordinal))
+                Events.Add(new DefenseEvent(Tick, DefenseEventType.Spawn, unit.EntityId, Position: unit.Position, Detail: unit.Definition.Id, FloorId: unit.FloorId));
+            Events.Add(new DefenseEvent(Tick, DefenseEventType.FloorEntered, unit.EntityId, Position: unit.Position, Detail: pending.Reason, FloorId: unit.FloorId));
+        }
+    }
+
+    private bool CanAdmitAtEntrance(RuntimeUnit candidate, FloorRuntime floor)
+    {
+        var nearest = AliveInvaders(floor.Id)
+            .Where(x => x.Admitted && !ReferenceEquals(x, candidate))
+            .OrderBy(x => x.RouteProgressUnits)
+            .ThenBy(x => x.EntityId, StringComparer.Ordinal)
+            .FirstOrDefault();
+        if (nearest is null) return true;
+        var spacing = TrafficRules.MinimumSpacingUnits(candidate.Definition.BodySizeClass, nearest.Definition.BodySizeClass);
+        return nearest.RouteProgressUnits >= spacing;
+    }
+
     private void MovementPhase()
     {
-        foreach (var invader in AliveInvaders(CurrentFloor.Id).OrderBy(x => x.EntityId, StringComparer.Ordinal))
-        {
-            if (invader.AwaitingFloorTransition || HasStatus(invader, StatusKind.Freeze) || Tick < invader.NextMoveTick || invader.PathIndex >= CurrentFloor.Route.Length - 1) continue;
-            if (TryHandleBossRouteBreak(invader, CurrentFloor)) continue;
-            if (IsEngaged(invader)) continue;
-            invader.PathIndex++;
-            invader.Position = CurrentFloor.Route[invader.PathIndex];
-            RecordEntry(invader.EntityId, invader.Position);
-            invader.NextMoveTick = Tick + EffectiveMoveInterval(invader);
-            Events.Add(new DefenseEvent(Tick, DefenseEventType.Move, invader.EntityId, Position: invader.Position, Amount: invader.PathIndex, FloorId: invader.FloorId));
-
-            if (invader.PathIndex >= CurrentFloor.Route.Length - 1)
-            {
-                if (CurrentFloor.EndpointKind == FloorEndpointKind.DescentGate)
-                {
-                    invader.AwaitingFloorTransition = true;
-                    Events.Add(new DefenseEvent(Tick, DefenseEventType.FloorRegroupWait, invader.EntityId, Position: invader.Position, FloorId: invader.FloorId));
-                }
-                else if (!invader.CoreReachedLogged)
-                {
-                    invader.CoreReachedLogged = true;
-                    Events.Add(new DefenseEvent(Tick, DefenseEventType.CoreReached, invader.EntityId, "CORE", invader.Position, FloorId: invader.FloorId));
-                }
-            }
-        }
+        MoveInvadersWithTraffic(CurrentFloor);
 
         foreach (var guard in AliveGuards(CurrentFloor.Id).OrderBy(x => x.EntityId, StringComparer.Ordinal))
         {
@@ -405,6 +466,112 @@ public sealed class DefenseSimulation
                 guard.NextMoveTick = Tick + EffectiveMoveInterval(guard);
                 Events.Add(new DefenseEvent(Tick, DefenseEventType.Move, guard.EntityId, guard.TargetEntityId, guard.Position, Detail: "guard", FloorId: guard.FloorId));
             }
+        }
+    }
+
+    private void MoveInvadersWithTraffic(FloorRuntime floor)
+    {
+        RuntimeUnit? resolvedLeader = null;
+        var endpointProgress = RouteProgress.AtCellCenter(floor.Route.Length - 1).Units;
+        foreach (var invader in AliveInvaders(floor.Id)
+                     .Where(x => x.Admitted)
+                     .OrderByDescending(x => x.RouteProgressUnits)
+                     .ThenBy(x => x.EntityId, StringComparer.Ordinal))
+        {
+            if (invader.AwaitingFloorTransition)
+            {
+                resolvedLeader = invader;
+                continue;
+            }
+
+            if (TryHandleBossRouteBreak(invader, floor))
+            {
+                resolvedLeader = invader;
+                continue;
+            }
+
+            var currentProgress = invader.RouteProgressUnits;
+            var unconstrainedDesired = currentProgress;
+            if (Tick >= invader.NextMoveTick
+                && !HasStatus(invader, StatusKind.Freeze)
+                && !IsEngaged(invader)
+                && unconstrainedDesired < endpointProgress)
+                unconstrainedDesired = Math.Min(endpointProgress, unconstrainedDesired + ComputeMoveAdvance(invader));
+
+            var desired = unconstrainedDesired;
+            if (resolvedLeader is not null)
+            {
+                var spacing = TrafficRules.MinimumSpacingUnits(invader.Definition.BodySizeClass, resolvedLeader.Definition.BodySizeClass);
+                desired = Math.Min(desired, resolvedLeader.RouteProgressUnits - spacing);
+            }
+
+            // Traffic may reduce this tick's advance, but never pushes a normal mover backwards and never banks lost advance.
+            desired = Math.Max(currentProgress, desired);
+            var trafficBlocked = unconstrainedDesired > currentProgress && desired <= currentProgress;
+            UpdateTrafficWait(invader, trafficBlocked);
+            SetNormalInvaderProgress(invader, floor, desired);
+
+            if (invader.RouteProgressUnits >= endpointProgress)
+            {
+                if (floor.EndpointKind == FloorEndpointKind.DescentGate)
+                {
+                    invader.AwaitingFloorTransition = true;
+                    invader.Admitted = false;
+                    invader.TrafficBlockedLastTick = false;
+                    invader.TargetEntityId = null;
+                    Events.Add(new DefenseEvent(Tick, DefenseEventType.FloorRegroupWait, invader.EntityId, Position: invader.Position, FloorId: invader.FloorId));
+                }
+                else if (!invader.CoreReachedLogged)
+                {
+                    invader.CoreReachedLogged = true;
+                    Events.Add(new DefenseEvent(Tick, DefenseEventType.CoreReached, invader.EntityId, "CORE", invader.Position, FloorId: invader.FloorId));
+                }
+            }
+
+            resolvedLeader = invader.Admitted ? invader : null;
+        }
+    }
+
+    private void UpdateTrafficWait(RuntimeUnit unit, bool blocked)
+    {
+        if (!blocked)
+        {
+            unit.TrafficBlockedLastTick = false;
+            return;
+        }
+
+        var key = (unit.FloorId, unit.Position);
+        _trafficBlockedTicks[key] = _trafficBlockedTicks.GetValueOrDefault(key) + 1;
+        if (!unit.TrafficBlockedLastTick)
+            _trafficWaitCounts[key] = _trafficWaitCounts.GetValueOrDefault(key) + 1;
+        unit.TrafficBlockedLastTick = true;
+    }
+
+    private static long ComputeMoveAdvance(RuntimeUnit unit)
+    {
+        var interval = EffectiveMoveInterval(unit);
+        var numerator = RouteProgress.UnitsPerCell + unit.MoveRemainder;
+        var advance = numerator / interval;
+        unit.MoveRemainder = (int)(numerator % interval);
+        return advance;
+    }
+
+    private void SetNormalInvaderProgress(RuntimeUnit unit, FloorRuntime floor, long desiredProgress)
+    {
+        var clamped = RouteProgress.Clamp(new RouteProgress(desiredProgress), floor.Route.Length).Units;
+        if (clamped <= unit.RouteProgressUnits) return;
+
+        var oldIndex = unit.PathIndex;
+        unit.RouteProgressUnits = clamped;
+        var newIndex = new RouteProgress(clamped).ToLogicalCellIndex(floor.Route.Length);
+        if (newIndex == oldIndex) return;
+
+        for (var index = oldIndex + 1; index <= newIndex; index++)
+        {
+            unit.PathIndex = index;
+            unit.Position = floor.Route[index];
+            RecordEntry(unit.EntityId, unit.Position);
+            Events.Add(new DefenseEvent(Tick, DefenseEventType.Move, unit.EntityId, Position: unit.Position, Amount: index, FloorId: unit.FloorId));
         }
     }
 
@@ -442,9 +609,16 @@ public sealed class DefenseSimulation
         foreach (var guard in AliveGuards(CurrentFloor.Id).OrderBy(x => x.EntityId, StringComparer.Ordinal))
         {
             var zone = GuardZone.Resolve(CurrentFloor.Board, _guardPlacements[guard.EntityId]);
-            guard.TargetEntityId = AliveInvaders(CurrentFloor.Id)
-                .Where(x => !x.AwaitingFloorTransition && zone.Contains(x.Position))
-                .OrderByDescending(x => x.PathIndex)
+            var candidates = AliveInvaders(CurrentFloor.Id)
+                .Where(x => !x.AwaitingFloorTransition && zone.Contains(x.Position));
+            if (guard.Definition.Role == UnitRole.Ranged)
+            {
+                candidates = candidates
+                    .Where(x => guard.Position.ManhattanDistance(x.Position) <= guard.Definition.AttackRange)
+                    .Where(x => DungeonLineOfSight.HasLineOfSight(CurrentFloor.Board, guard.Position, x.Position));
+            }
+            guard.TargetEntityId = candidates
+                .OrderByDescending(x => x.RouteProgressUnits)
                 .ThenBy(x => x.EntityId, StringComparer.Ordinal)
                 .Select(x => x.EntityId)
                 .FirstOrDefault();
@@ -469,7 +643,7 @@ public sealed class DefenseSimulation
                 .Where(x => !x.AwaitingFloorTransition)
                 .Where(x => x.Position.ManhattanDistance(placed.Position) <= definition.Range)
                 .Where(x => DungeonLineOfSight.HasLineOfSight(CurrentFloor.Board, placed.Position, x.Position))
-                .OrderByDescending(x => x.PathIndex)
+                .OrderByDescending(x => x.RouteProgressUnits)
                 .ThenBy(x => x.EntityId, StringComparer.Ordinal)
                 .Select(x => x.EntityId)
                 .FirstOrDefault();
@@ -495,6 +669,7 @@ public sealed class DefenseSimulation
             {
                 var ally = AliveInvaders(CurrentFloor.Id)
                     .Where(x => x.EntityId != invader.EntityId && x.Hp < x.MaxHp && x.Position.ManhattanDistance(invader.Position) <= invader.Definition.AttackRange)
+                    .Where(x => DungeonLineOfSight.HasLineOfSight(CurrentFloor.Board, invader.Position, x.Position))
                     .OrderBy(x => (double)x.Hp / x.MaxHp)
                     .ThenBy(x => x.EntityId, StringComparer.Ordinal)
                     .FirstOrDefault();
@@ -502,7 +677,7 @@ public sealed class DefenseSimulation
                 {
                     var before = ally.Hp;
                     ally.Hp = Math.Min(ally.MaxHp, ally.Hp + invader.Definition.HealPower);
-                    Events.Add(new DefenseEvent(Tick, DefenseEventType.Heal, invader.EntityId, ally.EntityId, ally.Position, ally.Hp - before, FloorId: invader.FloorId));
+                    Events.Add(new DefenseEvent(Tick, DefenseEventType.Heal, invader.EntityId, ally.EntityId, ally.Position, ally.Hp - before, FloorId: invader.FloorId, SourcePosition: invader.Position, SourceDefinitionId: invader.Definition.Id));
                     invader.NextAttackTick = Tick + Math.Max(1, invader.Definition.AttackCooldownTicks);
                     continue;
                 }
@@ -514,7 +689,8 @@ public sealed class DefenseSimulation
                 DealDamage(invader, guard, invader.Definition.Damage);
                 invader.NextAttackTick = Tick + Math.Max(1, invader.Definition.AttackCooldownTicks);
             }
-            else if (CurrentFloor.EndpointKind == FloorEndpointKind.DungeonCore && invader.PathIndex >= CurrentFloor.Route.Length - 1)
+            else if (CurrentFloor.EndpointKind == FloorEndpointKind.DungeonCore
+                     && invader.RouteProgressUnits >= RouteProgress.AtCellCenter(CurrentFloor.Route.Length - 1).Units)
             {
                 CoreHp -= invader.Definition.Damage;
                 invader.NextAttackTick = Tick + Math.Max(1, invader.Definition.AttackCooldownTicks);
@@ -532,7 +708,7 @@ public sealed class DefenseSimulation
             var damage = ApplyExecutionBonus(definition.Damage, target);
             target.Hp -= damage;
             _facilityReadyTick[key] = Tick + definition.CooldownTicks;
-            Events.Add(new DefenseEvent(Tick, DefenseEventType.Attack, DisplayPlacementId(CurrentFloor.Id, placed.InstanceId), target.EntityId, target.Position, damage, $"progress={target.PathIndex}", CurrentFloor.Id));
+            Events.Add(new DefenseEvent(Tick, DefenseEventType.Attack, DisplayPlacementId(CurrentFloor.Id, placed.InstanceId), target.EntityId, target.Position, damage, $"progress={target.PathIndex}", CurrentFloor.Id, placed.Position, definition.Id));
             if (definition.StatusKind is { } kind && target.Alive)
                 ApplyStatus(target, new StatusEffect(kind, definition.StatusStrength, definition.StatusDurationTicks), DisplayPlacementId(CurrentFloor.Id, placed.InstanceId));
         }
@@ -581,7 +757,9 @@ public sealed class DefenseSimulation
         if (Tick < _waveStartTick) return;
 
         var wave = _content.Waves[WaveIndex];
-        if (!AllSpawned(wave) || AliveInvaders().Any()) return;
+        if (!AllSpawned(wave)
+            || _pendingAdmissions.Count > 0
+            || _units.Any(x => x.Alive && x.Definition.Team == Team.Invader)) return;
 
         Events.Add(new DefenseEvent(Tick, DefenseEventType.WaveEnd, wave.Id, FloorId: CurrentFloor.Id));
         if (WaveIndex == _content.Waves.Count - 1)
@@ -607,40 +785,43 @@ public sealed class DefenseSimulation
         if (invader.BossRouteBreakReadyTick is { } readyTick)
         {
             if (Tick < readyTick) return true;
-            var landingIndex = invader.BossRouteBreakLandingIndex ?? invader.PathIndex;
+            var requestedLanding = invader.BossRouteBreakLandingProgressUnits ?? invader.RouteProgressUnits;
             invader.BossRouteBreakReadyTick = null;
-            invader.BossRouteBreakLandingIndex = null;
+            invader.BossRouteBreakLandingProgressUnits = null;
             invader.BossRouteBreakUses++;
-            if (landingIndex <= invader.PathIndex) return false;
-            invader.PathIndex = landingIndex;
-            invader.Position = floor.Route[landingIndex];
+            var landing = ResolveWarpLandingProgress(invader, requestedLanding, floor);
+            if (landing <= invader.RouteProgressUnits) return false;
+
+            ApplyForcedProgress(invader, landing, floor, invader.EntityId, "boss-warp", recordTraversedCells: false);
             invader.TargetEntityId = null;
             invader.AwaitingFloorTransition = false;
             invader.CoreReachedLogged = false;
-            RecordEntry(invader.EntityId, invader.Position);
-            invader.NextMoveTick = Tick + EffectiveMoveInterval(invader);
             Events.Add(new DefenseEvent(
                 Tick,
                 DefenseEventType.BossRouteBreakActivated,
                 invader.EntityId,
                 Position: invader.Position,
-                Amount: landingIndex,
+                Amount: invader.PathIndex,
                 Detail: $"kind={routeBreak.Kind};use={invader.BossRouteBreakUses}/{routeBreak.MaxUsesPerFloor}",
                 FloorId: floor.Id));
             return true;
         }
 
-        var triggerIndex = Math.Max(1, (int)Math.Ceiling((floor.Route.Length - 1) * routeBreak.TriggerPathPercent / 100.0));
-        if (invader.PathIndex < triggerIndex) return false;
+        var triggerProgress = RouteProgress.AtCellCenter(Math.Max(1, (int)Math.Ceiling((floor.Route.Length - 1) * routeBreak.TriggerPathPercent / 100.0))).Units;
+        if (invader.RouteProgressUnits < triggerProgress) return false;
         var maxLandingIndex = Math.Max(invader.PathIndex, floor.Route.Length - 2);
-        var targetIndex = Math.Min(invader.PathIndex + routeBreak.SkipRouteCells, maxLandingIndex);
-        if (targetIndex <= invader.PathIndex)
+        var requestedIndex = Math.Min(invader.PathIndex + routeBreak.SkipRouteCells, maxLandingIndex);
+        var requestedProgress = RouteProgress.AtCellCenter(requestedIndex).Units;
+        var targetProgress = ResolveWarpLandingProgress(invader, requestedProgress, floor);
+        if (targetProgress <= invader.RouteProgressUnits)
         {
             invader.BossRouteBreakUses = routeBreak.MaxUsesPerFloor;
             return false;
         }
+
         invader.BossRouteBreakReadyTick = Tick + routeBreak.TelegraphTicks;
-        invader.BossRouteBreakLandingIndex = targetIndex;
+        invader.BossRouteBreakLandingProgressUnits = targetProgress;
+        var targetIndex = new RouteProgress(targetProgress).ToLogicalCellIndex(floor.Route.Length);
         Events.Add(new DefenseEvent(
             Tick,
             DefenseEventType.BossRouteBreakTelegraph,
@@ -652,32 +833,68 @@ public sealed class DefenseSimulation
         return true;
     }
 
+    private long ResolveWarpLandingProgress(RuntimeUnit target, long requestedProgress, FloorRuntime floor)
+    {
+        var candidate = Math.Clamp(requestedProgress, target.RouteProgressUnits, RouteProgress.AtCellCenter(floor.Route.Length - 2).Units);
+        var others = AliveInvaders(floor.Id)
+            .Where(x => x.Admitted && !ReferenceEquals(x, target))
+            .OrderByDescending(x => x.RouteProgressUnits)
+            .ThenBy(x => x.EntityId, StringComparer.Ordinal)
+            .ToArray();
+
+        var changed = true;
+        while (changed && candidate > target.RouteProgressUnits)
+        {
+            changed = false;
+            foreach (var other in others)
+            {
+                var spacing = TrafficRules.MinimumSpacingUnits(target.Definition.BodySizeClass, other.Definition.BodySizeClass);
+                if (Math.Abs(candidate - other.RouteProgressUnits) >= spacing) continue;
+                candidate = Math.Max(target.RouteProgressUnits, other.RouteProgressUnits - spacing);
+                changed = true;
+                break;
+            }
+        }
+        return candidate;
+    }
+
     private bool TryTransitionFloor()
     {
         if (CurrentFloor.EndpointKind != FloorEndpointKind.DescentGate || _currentFloorIndex >= _floors.Length - 1) return false;
         var wave = _content.Waves[WaveIndex];
         if (_currentFloorIndex == 0 && !AllSpawned(wave)) return false;
 
-        var alive = AliveInvaders(CurrentFloor.Id).OrderBy(x => x.EntityId, StringComparer.Ordinal).ToArray();
+        if (_pendingAdmissions.Any(x => string.Equals(x.Unit.FloorId, CurrentFloor.Id, StringComparison.Ordinal))) return false;
+        var alive = _units
+            .Where(x => x.Alive
+                        && x.Definition.Team == Team.Invader
+                        && string.Equals(x.FloorId, CurrentFloor.Id, StringComparison.Ordinal))
+            .OrderBy(x => x.EntityId, StringComparer.Ordinal)
+            .ToArray();
         if (alive.Length == 0 || alive.Any(x => !x.AwaitingFloorTransition)) return false;
 
         var from = CurrentFloor;
         var next = _floors[_currentFloorIndex + 1];
         Events.Add(new DefenseEvent(Tick, DefenseEventType.FloorBreached, wave.Id, Detail: next.Id, FloorId: from.Id));
 
-        foreach (var unit in alive)
+        for (var ordinal = 0; ordinal < alive.Length; ordinal++)
         {
+            var unit = alive[ordinal];
             unit.FloorId = next.Id;
             unit.Position = next.Board.Entrance;
             unit.PathIndex = 0;
+            unit.RouteProgressUnits = 0;
+            unit.MoveRemainder = 0;
+            unit.Admitted = false;
+            unit.TrafficBlockedLastTick = false;
             unit.TargetEntityId = null;
             unit.AwaitingFloorTransition = false;
             unit.CoreReachedLogged = false;
             unit.BossRouteBreakUses = 0;
             unit.BossRouteBreakReadyTick = null;
-            unit.BossRouteBreakLandingIndex = null;
-            Events.Add(new DefenseEvent(Tick, DefenseEventType.FloorTransitioned, unit.EntityId, Position: unit.Position, Detail: $"{from.Id}->{next.Id}", FloorId: from.Id));
-            Events.Add(new DefenseEvent(Tick, DefenseEventType.FloorEntered, unit.EntityId, Position: unit.Position, Detail: from.Id, FloorId: next.Id));
+            unit.BossRouteBreakLandingProgressUnits = null;
+            _pendingAdmissions.Add(new PendingAdmission(unit, Tick + 1, 0, ordinal, from.Id));
+            Events.Add(new DefenseEvent(Tick, DefenseEventType.FloorTransitioned, unit.EntityId, Position: next.Board.Entrance, Detail: $"{from.Id}->{next.Id}", FloorId: from.Id));
         }
 
         _currentFloorIndex++;
@@ -685,7 +902,8 @@ public sealed class DefenseSimulation
     }
 
     private bool AllSpawned(WaveDefinition wave)
-        => wave.SpawnGroups.Select((group, index) => _spawnCounts[index] >= group.Count).All(x => x);
+        => wave.SpawnGroups.Select((group, index) => _spawnCounts[index] >= group.Count).All(x => x)
+           && !_pendingAdmissions.Any(x => string.Equals(x.Reason, "spawn", StringComparison.Ordinal));
 
     private bool IsEngaged(RuntimeUnit invader) => AliveGuards(invader.FloorId)
         .Any(guard => guard.Definition.Blocks
@@ -744,7 +962,7 @@ public sealed class DefenseSimulation
     {
         if (damage <= 0) return;
         target.Hp -= damage;
-        Events.Add(new DefenseEvent(Tick, DefenseEventType.Attack, attacker.EntityId, target.EntityId, target.Position, damage, $"progress={target.PathIndex}", target.FloorId));
+        Events.Add(new DefenseEvent(Tick, DefenseEventType.Attack, attacker.EntityId, target.EntityId, target.Position, damage, $"progress={target.PathIndex}", target.FloorId, attacker.Position, attacker.Definition.Id));
     }
 
     private void RecordEntry(string entityId, GridPoint point)
@@ -757,11 +975,66 @@ public sealed class DefenseSimulation
         cells.Add(point);
     }
 
+    public GridPoint? PreviewPushLanding(string entityId, int magnitude, string? floorId = null)
+    {
+        var resolvedFloorId = floorId ?? CurrentCombatFloorId;
+        if (!_floorById.TryGetValue(resolvedFloorId, out var floor)) return null;
+        var target = AliveInvaders(resolvedFloorId).SingleOrDefault(x => string.Equals(x.EntityId, entityId, StringComparison.Ordinal));
+        if (target is null) return null;
+        var destination = ResolvePushDestinationProgress(target, Math.Max(1, magnitude), floor);
+        return floor.Route[new RouteProgress(destination).ToLogicalCellIndex(floor.Route.Length)];
+    }
+
+    private long ResolvePushDestinationProgress(RuntimeUnit target, int magnitude, FloorRuntime floor)
+    {
+        var requested = Math.Max(0, target.RouteProgressUnits - (Math.Max(1, magnitude) * RouteProgress.UnitsPerCell));
+        var follower = AliveInvaders(floor.Id)
+            .Where(x => !ReferenceEquals(x, target) && x.RouteProgressUnits < target.RouteProgressUnits)
+            .OrderByDescending(x => x.RouteProgressUnits)
+            .ThenBy(x => x.EntityId, StringComparer.Ordinal)
+            .FirstOrDefault();
+        if (follower is null) return requested;
+        var spacing = TrafficRules.MinimumSpacingUnits(target.Definition.BodySizeClass, follower.Definition.BodySizeClass);
+        return Math.Min(target.RouteProgressUnits, Math.Max(requested, follower.RouteProgressUnits + spacing));
+    }
+
+    private void ApplyForcedProgress(RuntimeUnit unit, long destinationProgress, FloorRuntime floor, string actorId, string detail, bool recordTraversedCells = true)
+    {
+        var clamped = RouteProgress.Clamp(new RouteProgress(destinationProgress), floor.Route.Length).Units;
+        if (clamped == unit.RouteProgressUnits) return;
+        var oldIndex = unit.PathIndex;
+        var newIndex = new RouteProgress(clamped).ToLogicalCellIndex(floor.Route.Length);
+        unit.RouteProgressUnits = clamped;
+        unit.PathIndex = newIndex;
+        unit.Position = floor.Route[newIndex];
+        unit.MoveRemainder = 0;
+        unit.NextMoveTick = Tick + 1;
+        unit.TrafficBlockedLastTick = false;
+        unit.AwaitingFloorTransition = false;
+        unit.CoreReachedLogged = false;
+
+        if (newIndex != oldIndex)
+        {
+            if (recordTraversedCells)
+            {
+                var step = newIndex > oldIndex ? 1 : -1;
+                for (var index = oldIndex + step; index != newIndex + step; index += step)
+                    RecordEntry(unit.EntityId, floor.Route[index]);
+            }
+            else
+            {
+                // Warp skips intermediate cells but still enters its legal landing cell.
+                RecordEntry(unit.EntityId, floor.Route[newIndex]);
+            }
+        }
+        Events.Add(new DefenseEvent(Tick, DefenseEventType.Move, actorId, unit.EntityId, unit.Position, Amount: newIndex, Detail: detail, FloorId: floor.Id));
+    }
+
     private string RuntimeGuardId(string floorId, string instanceId) => _floors.Length == 1 ? instanceId : PlacementKey(floorId, instanceId);
     private string DisplayPlacementId(string floorId, string instanceId) => _floors.Length == 1 ? instanceId : PlacementKey(floorId, instanceId);
     private static string PlacementKey(string floorId, string instanceId) => $"{floorId}:{instanceId}";
 
-    private IEnumerable<RuntimeUnit> AliveInvaders() => _units.Where(x => x.Alive && x.Definition.Team == Team.Invader);
+    private IEnumerable<RuntimeUnit> AliveInvaders() => _units.Where(x => x.Alive && x.Admitted && x.Definition.Team == Team.Invader);
     private IEnumerable<RuntimeUnit> AliveInvaders(string floorId) => AliveInvaders().Where(x => string.Equals(x.FloorId, floorId, StringComparison.Ordinal));
     private IEnumerable<RuntimeUnit> AliveGuards(string floorId) => _units.Where(x => x.Alive && x.Definition.Team == Team.Dungeon && string.Equals(x.FloorId, floorId, StringComparison.Ordinal));
 }

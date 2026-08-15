@@ -22,12 +22,16 @@ public sealed record DefenseFloorResultSummary(
     string FloorId,
     int Depth,
     int DeepestPathIndex,
-    int TrafficCount,
+    int PassageCount,
     int TrapDamage,
     int GuardDamage,
     int FacilityDamage,
     int GuardCollapseCount,
-    bool Breached);
+    bool Breached)
+{
+    // Compatibility alias while existing hosts migrate to Route Pressure terminology.
+    public int TrafficCount => PassageCount;
+}
 
 public sealed record DefenseResultReport(
     DefenseOutcome Outcome,
@@ -44,18 +48,29 @@ public sealed record DefenseResultReport(
     int SpellCasts,
     int CoreHitCount,
     int DeepestPathIndex,
-    IReadOnlyDictionary<GridPoint, int> TrafficHeatmap,
+    IReadOnlyDictionary<GridPoint, int> RoutePressureHeatmap,
     IReadOnlyList<DefenseElementPerformance> TrapPerformance,
     IReadOnlyList<DefenseElementPerformance> FacilityPerformance,
     IReadOnlyList<GuardCollapseDetail> GuardCollapses,
     BreachDetail? FirstBreach,
-    GridPoint? TrafficHotspot,
+    GridPoint? RoutePressureHotspot,
     string Digest)
 {
     public IReadOnlyList<DefenseFloorResultSummary> FloorSummaries { get; init; } = [];
-    public IReadOnlyDictionary<string, IReadOnlyDictionary<GridPoint, int>> TrafficHeatmapsByFloor { get; init; }
+    public IReadOnlyDictionary<string, IReadOnlyDictionary<GridPoint, int>> RoutePressureHeatmapsByFloor { get; init; }
+        = new Dictionary<string, IReadOnlyDictionary<GridPoint, int>>(StringComparer.Ordinal);
+    public int TrafficBlockedTicks { get; init; }
+    public int TrafficWaitCount { get; init; }
+    public GridPoint? TrafficHotspot { get; init; }
+    public IReadOnlyDictionary<string, IReadOnlyDictionary<GridPoint, int>> TrafficBlockedTicksByFloor { get; init; }
+        = new Dictionary<string, IReadOnlyDictionary<GridPoint, int>>(StringComparer.Ordinal);
+    public IReadOnlyDictionary<string, IReadOnlyDictionary<GridPoint, int>> TrafficWaitCountsByFloor { get; init; }
         = new Dictionary<string, IReadOnlyDictionary<GridPoint, int>>(StringComparer.Ordinal);
     public string? DeepestBreachedFloorId { get; init; }
+
+    // Compatibility views retain Route Pressure semantics.
+    public IReadOnlyDictionary<GridPoint, int> TrafficHeatmap => RoutePressureHeatmap;
+    public IReadOnlyDictionary<string, IReadOnlyDictionary<GridPoint, int>> TrafficHeatmapsByFloor => RoutePressureHeatmapsByFloor;
 
     public static DefenseResultReport From(DefenseSimulation simulation)
     {
@@ -83,7 +98,7 @@ public sealed record DefenseResultReport(
             .Where(x => x.Type == DefenseEventType.Move && x.Position is not null && !simulation.GuardIds.Contains(x.ActorId))
             .ToArray();
         var deepest = moveEvents.Select(x => x.Amount).DefaultIfEmpty(0).Max();
-        var heatmapsByFloor = simulation.Routes.Keys
+        var routePressureByFloor = simulation.Routes.Keys
             .OrderBy(x => simulation.FloorDepths[x])
             .ToDictionary(
                 floorId => floorId,
@@ -94,12 +109,35 @@ public sealed record DefenseResultReport(
                 StringComparer.Ordinal);
 
         // Compatibility view for one-floor consumers. Multi-floor consumers must use TrafficHeatmapsByFloor.
-        var heatmap = heatmapsByFloor.Count == 1
-            ? new Dictionary<GridPoint, int>(heatmapsByFloor.Values.First())
+        var routePressure = routePressureByFloor.Count == 1
+            ? new Dictionary<GridPoint, int>(routePressureByFloor.Values.First())
             : moveEvents.GroupBy(x => x.Position!.Value).ToDictionary(x => x.Key, x => x.Count());
-        var hotspot = heatmap.Count == 0
+        var routePressureHotspot = routePressure.Count == 0
             ? (GridPoint?)null
-            : heatmap.OrderByDescending(x => x.Value).ThenBy(x => x.Key.Y).ThenBy(x => x.Key.X).First().Key;
+            : routePressure.OrderByDescending(x => x.Value).ThenBy(x => x.Key.Y).ThenBy(x => x.Key.X).First().Key;
+
+        var trafficBlockedByFloor = simulation.Routes.Keys
+            .OrderBy(x => simulation.FloorDepths[x])
+            .ToDictionary(
+                floorId => floorId,
+                floorId => simulation.TrafficBlockedTicksForFloor(floorId),
+                StringComparer.Ordinal);
+        var trafficWaitsByFloor = simulation.Routes.Keys
+            .OrderBy(x => simulation.FloorDepths[x])
+            .ToDictionary(
+                floorId => floorId,
+                floorId => simulation.TrafficWaitCountsForFloor(floorId),
+                StringComparer.Ordinal);
+        var trafficBlockedTicks = trafficBlockedByFloor.Values.Sum(x => x.Values.Sum());
+        var trafficWaitCount = trafficWaitsByFloor.Values.Sum(x => x.Values.Sum());
+        var trafficHotspot = trafficBlockedByFloor
+            .SelectMany(x => x.Value.Select(cell => (FloorId: x.Key, Position: cell.Key, Ticks: cell.Value)))
+            .OrderByDescending(x => x.Ticks)
+            .ThenBy(x => simulation.FloorDepths[x.FloorId])
+            .ThenBy(x => x.Position.Y)
+            .ThenBy(x => x.Position.X)
+            .Select(x => (GridPoint?)x.Position)
+            .FirstOrDefault();
 
         var breachedFloors = simulation.Events
             .Where(x => x.Type == DefenseEventType.FloorBreached)
@@ -115,7 +153,7 @@ public sealed record DefenseResultReport(
                 floorId,
                 simulation.FloorDepths[floorId],
                 moveEvents.Where(x => x.FloorId == floorId).Select(x => x.Amount).DefaultIfEmpty(0).Max(),
-                heatmapsByFloor[floorId].Values.Sum(),
+                routePressureByFloor[floorId].Values.Sum(),
                 trapEvents.Where(x => x.FloorId == floorId).Sum(x => x.Amount),
                 guardAttackEvents.Where(x => x.FloorId == floorId).Sum(x => x.Amount),
                 facilityAttackEvents.Where(x => x.FloorId == floorId).Sum(x => x.Amount),
@@ -139,16 +177,21 @@ public sealed record DefenseResultReport(
             spellCasts,
             coreHits,
             deepest,
-            heatmap,
+            routePressure,
             trapPerformance,
             facilityPerformance,
             guardCollapses,
             firstBreach,
-            hotspot,
+            routePressureHotspot,
             simulation.ResultDigest())
         {
             FloorSummaries = floorSummaries,
-            TrafficHeatmapsByFloor = heatmapsByFloor,
+            RoutePressureHeatmapsByFloor = routePressureByFloor,
+            TrafficBlockedTicks = trafficBlockedTicks,
+            TrafficWaitCount = trafficWaitCount,
+            TrafficHotspot = trafficHotspot,
+            TrafficBlockedTicksByFloor = trafficBlockedByFloor,
+            TrafficWaitCountsByFloor = trafficWaitsByFloor,
             DeepestBreachedFloorId = deepestBreachedFloor,
         };
     }

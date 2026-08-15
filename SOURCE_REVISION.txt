@@ -1,5 +1,5 @@
 Source project: 2dTD
-Source game revision: f98271ae46bfa5254060bc1dc0516949e513be4c
+Source game revision: 727c6a84745d5b065ec530c3689ef6c01e8407ba
 Source tree dirty: no
 Reproducible from revision alone: yes
 Snapshot date: 2026-08-16

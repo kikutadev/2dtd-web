@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
 const port = Number(process.env.WEB_SMOKE_PORT ?? '5279');
-const debugPort = Number(process.env.WEB_SMOKE_DEBUG_PORT ?? '9333');
+const debugPort = Number(process.env.WEB_SMOKE_DEBUG_PORT ?? '19433');
 const externalUrl = process.env.WEB_SMOKE_BASE_URL?.trim();
 const url = externalUrl ? (externalUrl.endsWith('/') ? externalUrl : `${externalUrl}/`) : `http://127.0.0.1:${port}/`;
 const chrome = process.env.CHROME_BIN ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
