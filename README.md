@@ -9,6 +9,7 @@ Godot 4 C# projects cannot currently be exported directly to Web. This repositor
 - `DungeonDefense.Core`
 - `DungeonDefense.Contracts`
 - `DungeonDefense.Application`
+- `DungeonDefense.Presentation`（shared motion timeline → immutable `CombatVisualState`）
 - promoted production art
 - `vertical-slice.json` defense content
 
@@ -18,6 +19,8 @@ The browser demo runs the real `DefenseSimulation`; it is not a JavaScript reimp
 
 - production dungeon tiles / units / traps / facilities / core art
 - actual C# defense simulation in browser WASM
+- shared `CombatVisualState`によるMove / Attack / Hit / Death / Push / projectile motion
+- 20Hz Core simulation clockと約60Hz browser render clockの分離
 - start / pause / reset
 - 1x / 2x / 3x simulation speed
 - freeze / push spell commands

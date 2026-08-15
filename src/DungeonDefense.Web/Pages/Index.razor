@@ -2,6 +2,8 @@
 @implements IAsyncDisposable
 @using DungeonDefense.Application
 @using DungeonDefense.Core
+@using DungeonDefense.Presentation
+@using System.Diagnostics
 @inject HttpClient Http
 
 <PageTitle>Dungeon Defense — Web Spike</PageTitle>
@@ -68,18 +70,27 @@ else
                                             <img class="unit" src="@UnitAsset(guard.DefinitionId, "E")" alt="guard" />
                                         }
                                     }
-                                    else
-                                    {
-                                        @foreach (var unit in _demo.Simulation.Units.Where(u => u.Alive && u.Position == point))
-                                        {
-                                            <div class="unit-wrap @TeamClass(unit.Team)">
-                                                <img class="unit" src="@UnitAsset(unit.DefinitionId, Facing(unit))" alt="@unit.DefinitionId" />
-                                                <div class="hp"><span style="width:@HpPercent(unit)%"></span></div>
-                                            </div>
-                                        }
-                                    }
                                 </div>
                             }
+                        }
+                        @if (_demo.Simulation is not null)
+                        {
+                            <div class="unit-layer" aria-hidden="true">
+                                @foreach (var unit in _demo.VisualState.Units)
+                                {
+                                    <div class="unit-wrap @TeamClass(unit.Team)" style="@UnitStyle(unit)">
+                                        <img class="unit" src="@UnitAsset(unit.DefinitionId, CombatMotionPresentation.FacingSuffix(unit.Facing))" alt="@unit.DefinitionId" />
+                                        @if (unit.ShowHp)
+                                        {
+                                            <div class="hp"><span style="width:@HpPercent(unit)%"></span></div>
+                                        }
+                                    </div>
+                                }
+                                @foreach (var projectile in _demo.VisualState.Projectiles)
+                                {
+                                    <span class="projectile" style="@ProjectileStyle(projectile)"></span>
+                                }
+                            </div>
                         }
                     </div>
                 </div>
@@ -140,15 +151,19 @@ else
 
     private async Task RunLoopAsync(CancellationToken cancellationToken)
     {
-        _timer = new PeriodicTimer(TimeSpan.FromMilliseconds(100));
+        _timer = new PeriodicTimer(TimeSpan.FromMilliseconds(16));
+        var previousTimestamp = Stopwatch.GetTimestamp();
         try
         {
             while (await _timer.WaitForNextTickAsync(cancellationToken))
             {
-                if (!_running || _demo is null) continue;
-                _demo.AdvanceFrame(_speed);
-                if (_demo.Simulation?.Outcome != DefenseOutcome.Running) _running = false;
-                await InvokeAsync(StateHasChanged);
+                var nowTimestamp = Stopwatch.GetTimestamp();
+                var deltaSeconds = Stopwatch.GetElapsedTime(previousTimestamp, nowTimestamp).TotalSeconds;
+                previousTimestamp = nowTimestamp;
+                if (_demo is null) continue;
+                var changed = _demo.AdvanceFrame(deltaSeconds, _speed, _running);
+                if (_running && _demo.Simulation?.Outcome != DefenseOutcome.Running) _running = false;
+                if (changed) await InvokeAsync(StateHasChanged);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
@@ -194,28 +209,26 @@ else
     private static string TrapAsset(string id) => id == "trap.poison" ? "assets/production/traps/TR-03.png" : "assets/production/traps/TR-01.png";
     private static string FacilityAsset(string id) => id == "facility.magic_eye" ? "assets/production/facilities/DF-02.png" : "assets/production/facilities/DF-01.png";
     private static string TeamClass(Team team) => team == Team.Invader ? "invader" : "dungeon";
-    private static int HpPercent(UnitSnapshot unit) => unit.MaxHp <= 0 ? 0 : Math.Clamp(unit.Hp * 100 / unit.MaxHp, 0, 100);
+    private static int HpPercent(CombatUnitVisualState unit) => unit.MaxHp <= 0 ? 0 : Math.Clamp(unit.Hp * 100 / unit.MaxHp, 0, 100);
 
-    private string Facing(UnitSnapshot unit)
+
+    private string UnitStyle(CombatUnitVisualState unit)
     {
-        if (_demo?.Simulation is not { } simulation) return "E";
-        if (unit.Team == Team.Invader && unit.PathIndex >= 0 && unit.PathIndex + 1 < simulation.Route.Count)
-            return DirectionSuffix(unit.Position, simulation.Route[unit.PathIndex + 1]);
-        if (!string.IsNullOrWhiteSpace(unit.TargetEntityId))
-        {
-            var target = simulation.Units.FirstOrDefault(x => x.EntityId == unit.TargetEntityId);
-            if (target is not null && unit.Position.ManhattanDistance(target.Position) > 0)
-                return DirectionSuffix(unit.Position, target.Position);
-        }
-        return unit.Team == Team.Invader ? "E" : "W";
+        var visual = unit.RenderPosition;
+        var width = 100.0 / _demo!.Board.Width;
+        var height = 100.0 / _demo.Board.Height;
+        var left = visual.X * width;
+        var top = visual.Y * height;
+        var brightness = 1.0 + (unit.HitFlashStrength * 0.65);
+        return FormattableString.Invariant($"left:{left:0.###}%;top:{top:0.###}%;width:{width:0.###}%;height:{height:0.###}%;opacity:{unit.Opacity:0.###};transform:scale({unit.ScaleX:0.###},{unit.ScaleY:0.###});filter:brightness({brightness:0.###});");
     }
 
-    private static string DirectionSuffix(GridPoint from, GridPoint to)
+    private string ProjectileStyle(CombatProjectileVisualState projectile)
     {
-        var dx = to.X - from.X;
-        var dy = to.Y - from.Y;
-        if (Math.Abs(dx) >= Math.Abs(dy)) return dx >= 0 ? "E" : "W";
-        return dy >= 0 ? "S" : "N";
+        var point = projectile.Position;
+        var left = ((point.X + 0.5) * 100.0) / _demo!.Board.Width;
+        var top = ((point.Y + 0.5) * 100.0) / _demo.Board.Height;
+        return FormattableString.Invariant($"left:{left:0.###}%;top:{top:0.###}%;");
     }
 
     private static string UnitAsset(string definitionId, string facing)

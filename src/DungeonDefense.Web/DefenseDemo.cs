@@ -1,13 +1,18 @@
 using DungeonDefense.Application;
 using DungeonDefense.Core;
+using DungeonDefense.Presentation;
 
 namespace DungeonDefense.Web;
 
-/// <summary>Small browser adapter around the production defense simulation.</summary>
+/// <summary>Small browser adapter around the production defense simulation and shared presentation timeline.</summary>
 internal sealed class DefenseDemo
 {
+    private const double SimulationStepSeconds = 1.0 / DefenseSimulation.TicksPerSecond;
     private readonly DefenseContent _content;
+    private readonly CombatMotionPresentation _presentation = new();
     private DefenseAutoBattleController? _autoBattle;
+    private int _eventCursor;
+    private double _simulationAccumulatorSeconds;
 
     public DefenseDemo(DefenseContent content)
     {
@@ -17,6 +22,7 @@ internal sealed class DefenseDemo
 
     public DefenseGameSession Session { get; private set; } = null!;
     public DefenseSimulation? Simulation { get; private set; }
+    public CombatVisualState VisualState => _presentation.VisualState;
     public DungeonState Board => Session.Dungeon.Floors[0].Board;
     public DefenseOutcome Outcome => Simulation?.Outcome ?? DefenseOutcome.Running;
 
@@ -26,6 +32,9 @@ internal sealed class DefenseDemo
         DefenseSliceScenario.ConfigureSuccessfulDefense(Session);
         Simulation = null;
         _autoBattle = null;
+        _eventCursor = 0;
+        _simulationAccumulatorSeconds = 0;
+        _presentation.Reset();
     }
 
     public void Start()
@@ -34,17 +43,46 @@ internal sealed class DefenseDemo
         if (Simulation is not null) Reset();
         Simulation = Session.StartDefense(_content, seed: 20260815);
         _autoBattle = Session.CreateAutoBattleController();
+        _simulationAccumulatorSeconds = 0;
+        _presentation.SyncSnapshot(Simulation.Units, Simulation.CurrentCombatFloorId);
+        _eventCursor = Simulation.Events.Count;
     }
 
-    public void AdvanceFrame(int speed)
+    /// <summary>
+    /// Advances the browser render clock independently from the deterministic 20 Hz simulation clock.
+    /// Presentation receives wall-clock delta, while simulation speed changes only how quickly fixed Core steps are consumed.
+    /// </summary>
+    public bool AdvanceFrame(double deltaSeconds, int speed, bool advanceSimulation)
     {
-        if (Simulation is not { Outcome: DefenseOutcome.Running } simulation || _autoBattle is null) return;
-        var steps = Math.Clamp(speed, 1, 3) * 2; // 100 ms render cadence; 2 ticks equals native 1x time.
-        for (var i = 0; i < steps && simulation.Outcome == DefenseOutcome.Running; i++)
+        var normalizedSpeed = Math.Clamp(speed, 1, 3);
+        var renderDelta = Math.Clamp(deltaSeconds, 0.0, 0.10);
+        var hadActiveMotion = _presentation.VisualState.HasActiveMotion;
+
+        _presentation.SetBattleSpeed(normalizedSpeed);
+        _presentation.Advance(renderDelta, normalizedSpeed);
+
+        if (!advanceSimulation || Simulation is not { Outcome: DefenseOutcome.Running } simulation || _autoBattle is null)
+            return hadActiveMotion || _presentation.VisualState.HasActiveMotion;
+
+        _simulationAccumulatorSeconds += renderDelta * normalizedSpeed;
+        var stepped = false;
+        while (_simulationAccumulatorSeconds >= SimulationStepSeconds && simulation.Outcome == DefenseOutcome.Running)
         {
+            _simulationAccumulatorSeconds -= SimulationStepSeconds;
             _autoBattle.TryQueueAction(simulation);
             simulation.Step();
+            stepped = true;
         }
+
+        if (stepped)
+        {
+            _presentation.SyncSnapshot(simulation.Units, simulation.CurrentCombatFloorId);
+            var newEvents = simulation.Events.Skip(_eventCursor).ToArray();
+            _eventCursor = simulation.Events.Count;
+            foreach (var combatEvent in newEvents) _presentation.ConsumeEvent(combatEvent);
+        }
+
+        return stepped || hadActiveMotion || _presentation.VisualState.HasActiveMotion;
     }
 
     public string CastFreeze()

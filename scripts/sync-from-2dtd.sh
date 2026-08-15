@@ -12,6 +12,14 @@ ALLOW_DIRTY=0
 DRY_RUN=0
 SKIP_BUILD=0
 VERIFY_ONLY=0
+DOTNET="${DOTNET:-$(command -v dotnet 2>/dev/null || true)}"
+if [[ -z "$DOTNET" && -x /usr/local/share/dotnet/dotnet ]]; then
+  DOTNET=/usr/local/share/dotnet/dotnet
+fi
+if [[ -z "$DOTNET" ]]; then
+  echo "error: dotnet not found" >&2
+  exit 127
+fi
 
 usage() {
   cat <<'EOF'
@@ -202,7 +210,7 @@ Art: godot/assets/production
 EOF
 
 if [[ "$SKIP_BUILD" -ne 1 ]]; then
-  dotnet build "$WEB_ROOT/src/DungeonDefense.Web/DungeonDefense.Web.csproj" -c Release
+  "$DOTNET" build "$WEB_ROOT/src/DungeonDefense.Web/DungeonDefense.Web.csproj" -c Release
 fi
 
 echo "Snapshot synchronization complete."
