@@ -23,6 +23,8 @@ The browser demo runs the real `DefenseSimulation`; it is not a JavaScript reimp
 - 20Hz Core simulation clockと約60Hz browser render clockの分離
 - production `DefenseEditCommandService` placement preview / place / remove
 - Build → Defense → Result → Rebuild without a page reload
+- production `InvasionSimulation` playable flow: Scouting / Formation → section battle → Result
+- Black Iron Mine canonical formation plus manual deployment, Mend/Ward support, retreat, and 1x/2x/3x speed
 - start / pause / replay
 - 1x / 2x / 3x simulation speed
 - freeze / push spell commands
@@ -30,7 +32,7 @@ The browser demo runs the real `DefenseSimulation`; it is not a JavaScript reimp
 - ja/en Web-demo localization with production build terminology
 - responsive static hosting suitable for GitHub Pages
 
-It is **not** a port of the Godot editor UI. The browser host stays intentionally thin: placement rules and battle rules remain in the production Application/Core, while the Web layer only renders and translates the minimum playable interactions. Campaign persistence, audio, and the full native mobile shell remain outside the demo.
+It is **not** a port of the Godot editor UI. The browser host stays intentionally thin: placement rules, Defense rules, and the section-based Invasion rules remain in the production Application/Core, while the Web layer only renders and translates the minimum playable interactions. The Invasion view intentionally does not convert its section model into DefenseSimulation. Campaign persistence, audio, and the full native mobile shell remain outside the demo.
 
 ## Local build
 
@@ -47,7 +49,7 @@ dotnet test tests/DungeonDefense.Web.Tests/DungeonDefense.Web.Tests.csproj -c Re
 node scripts/browser-smoke.mjs
 ```
 
-The browser smoke publishes the app to a temporary directory and drives headless Chrome through the DevTools Protocol without third-party Node packages. It places a trap, guard, and facility through real UI clicks, completes a 3× defense, returns to the same editable build, removes a placement, switches to English, and verifies that a 390px mobile viewport has no document-level horizontal overflow.
+The browser smoke publishes the app to a temporary directory and drives headless Chrome through the DevTools Protocol without third-party Node packages. It places a trap, guard, and facility through real UI clicks, completes a 3× defense, returns to the same editable build, removes a placement, switches to English, verifies a 390px mobile viewport, then runs the canonical Black Iron invasion through deployment, Ward support, section completion, Result, ja/en switching, and return to Defense. `WEB_SMOKE_BASE_URL` can point the same flow at the deployed GitHub Pages site.
 
 ## Source provenance
 

@@ -14,13 +14,19 @@
 }
 else
 {
+    @if (_showInvasion && _content is not null)
+    {
+        <InvasionDemoView DefenseContent="_content" OnBack="CloseInvasionDemo" />
+    }
+    else
+    {
     <div class="app-shell">
         <header class="topbar">
             <div>
                 <div class="eyebrow">2dTD · WEB PLAYABLE DEMO</div>
                 <h1>@T("title")</h1>
             </div>
-            <div class="top-actions"><div class="locale-picker"><button class="@(_locale == WebDemoLocalization.Japanese ? "active" : null)" @onclick="() => SetLocale(WebDemoLocalization.Japanese)">日本語</button><button class="@(_locale == WebDemoLocalization.English ? "active" : null)" @onclick="() => SetLocale(WebDemoLocalization.English)">EN</button></div><div class="runtime-badge"><span class="dot"></span> Production C# / WASM</div></div>
+            <div class="top-actions"><button class="mode-link" @onclick="OpenInvasionDemo">@T("invasion_demo")</button><div class="locale-picker"><button class="@(_locale == WebDemoLocalization.Japanese ? "active" : null)" @onclick="() => SetLocale(WebDemoLocalization.Japanese)">日本語</button><button class="@(_locale == WebDemoLocalization.English ? "active" : null)" @onclick="() => SetLocale(WebDemoLocalization.English)">EN</button></div><div class="runtime-badge"><span class="dot"></span> Production C# / WASM</div></div>
         </header>
 
         @if (IsBuilding)
@@ -230,6 +236,7 @@ else
             <span>@T("footer")</span>
         </footer>
     </div>
+    }
 }
 
 @code {
@@ -244,6 +251,7 @@ else
     private bool _removeMode;
     private bool _rotated;
     private string? _notice;
+    private bool _showInvasion;
     private string _locale = WebDemoLocalization.Japanese;
 
     private bool IsBuilding => _demo is null;
@@ -279,6 +287,18 @@ else
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+    }
+
+    private void OpenInvasionDemo()
+    {
+        _running = false;
+        _showInvasion = true;
+    }
+
+    private void CloseInvasionDemo()
+    {
+        _showInvasion = false;
+        _notice = null;
     }
 
     private void SetLocale(string locale)

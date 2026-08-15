@@ -4,5 +4,5 @@ Source tree dirty: no
 Reproducible from revision alone: yes
 Snapshot date: 2026-08-16
 Shared projects: DungeonDefense.Core, DungeonDefense.Contracts, DungeonDefense.Application, DungeonDefense.Presentation
-Content: content/vertical-slice.json
+Content: content/vertical-slice.json, content/invasion-vertical-slice.json
 Art: godot/assets/production

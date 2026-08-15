@@ -86,6 +86,7 @@ require_path "$SOURCE_ROOT/src/DungeonDefense.Contracts"
 require_path "$SOURCE_ROOT/src/DungeonDefense.Application"
 require_path "$SOURCE_ROOT/src/DungeonDefense.Presentation"
 require_path "$SOURCE_ROOT/content/vertical-slice.json"
+require_path "$SOURCE_ROOT/content/invasion-vertical-slice.json"
 require_path "$SOURCE_ROOT/godot/assets/production"
 
 SOURCE_REVISION="$(git -C "$SOURCE_ROOT" rev-parse HEAD)"
@@ -150,6 +151,9 @@ done
 sync_file \
   "$SOURCE_ROOT/content/vertical-slice.json" \
   "$WEB_ROOT/src/DungeonDefense.Web/wwwroot/content/vertical-slice.json"
+sync_file \
+  "$SOURCE_ROOT/content/invasion-vertical-slice.json" \
+  "$WEB_ROOT/src/DungeonDefense.Web/wwwroot/content/invasion-vertical-slice.json"
 
 sync_tree \
   "$SOURCE_ROOT/godot/assets/production" \
@@ -164,6 +168,9 @@ if [[ "$VERIFY_ONLY" -eq 1 ]]; then
     done
     if ! cmp -s "$SOURCE_ROOT/content/vertical-slice.json" "$WEB_ROOT/src/DungeonDefense.Web/wwwroot/content/vertical-slice.json"; then
       echo "content/vertical-slice.json differs"
+    fi
+    if ! cmp -s "$SOURCE_ROOT/content/invasion-vertical-slice.json" "$WEB_ROOT/src/DungeonDefense.Web/wwwroot/content/invasion-vertical-slice.json"; then
+      echo "content/invasion-vertical-slice.json differs"
     fi
     rsync -a --delete --exclude .DS_Store --exclude '*.import' --dry-run --itemize-changes \
       "$SOURCE_ROOT/godot/assets/production/" "$WEB_ROOT/src/DungeonDefense.Web/wwwroot/assets/production/"
@@ -205,7 +212,7 @@ Source tree dirty: $DIRTY_LABEL
 Reproducible from revision alone: $REPRODUCIBLE_LABEL
 Snapshot date: $(date +%Y-%m-%d)
 Shared projects: DungeonDefense.Core, DungeonDefense.Contracts, DungeonDefense.Application, DungeonDefense.Presentation
-Content: content/vertical-slice.json
+Content: content/vertical-slice.json, content/invasion-vertical-slice.json
 Art: godot/assets/production
 EOF
 

@@ -11,12 +11,17 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
 const port = Number(process.env.WEB_SMOKE_PORT ?? '5279');
 const debugPort = Number(process.env.WEB_SMOKE_DEBUG_PORT ?? '9333');
-const url = `http://127.0.0.1:${port}/`;
+const externalUrl = process.env.WEB_SMOKE_BASE_URL?.trim();
+const url = externalUrl ? (externalUrl.endsWith('/') ? externalUrl : `${externalUrl}/`) : `http://127.0.0.1:${port}/`;
 const chrome = process.env.CHROME_BIN ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const profileDir = await mkdtemp(path.join(os.tmpdir(), '2dtd-web-smoke-profile-'));
-const publishDir = await mkdtemp(path.join(os.tmpdir(), '2dtd-web-smoke-publish-'));
-execFileSync('dotnet', ['publish', 'src/DungeonDefense.Web/DungeonDefense.Web.csproj', '-c', 'Release', '--no-restore', '-o', publishDir], { cwd: repoRoot, stdio: 'pipe' });
-const webRoot = path.join(publishDir, 'wwwroot');
+let publishDir;
+let webRoot;
+if (!externalUrl) {
+  publishDir = await mkdtemp(path.join(os.tmpdir(), '2dtd-web-smoke-publish-'));
+  execFileSync('dotnet', ['publish', 'src/DungeonDefense.Web/DungeonDefense.Web.csproj', '-c', 'Release', '--no-restore', '-o', publishDir], { cwd: repoRoot, stdio: 'pipe' });
+  webRoot = path.join(publishDir, 'wwwroot');
+}
 const children = [];
 let staticServer;
 
@@ -82,34 +87,38 @@ async function clickFirst(selector) {
 }
 
 try {
-  const contentTypes = new Map([
-    ['.html', 'text/html; charset=utf-8'], ['.js', 'text/javascript; charset=utf-8'],
-    ['.css', 'text/css; charset=utf-8'], ['.json', 'application/json; charset=utf-8'],
-    ['.wasm', 'application/wasm'], ['.png', 'image/png'], ['.svg', 'image/svg+xml'],
-    ['.ico', 'image/x-icon'], ['.dat', 'application/octet-stream'],
-  ]);
-  staticServer = http.createServer((request, response) => {
-    try {
-      const pathname = decodeURIComponent(new URL(request.url ?? '/', url).pathname);
-      const relative = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
-      const filePath = path.resolve(webRoot, relative);
-      if (!filePath.startsWith(`${webRoot}${path.sep}`) && filePath !== path.join(webRoot, 'index.html')) {
-        response.writeHead(403).end();
-        return;
+  if (!externalUrl) {
+    const contentTypes = new Map([
+      ['.html', 'text/html; charset=utf-8'], ['.js', 'text/javascript; charset=utf-8'],
+      ['.css', 'text/css; charset=utf-8'], ['.json', 'application/json; charset=utf-8'],
+      ['.wasm', 'application/wasm'], ['.png', 'image/png'], ['.svg', 'image/svg+xml'],
+      ['.ico', 'image/x-icon'], ['.dat', 'application/octet-stream'],
+    ]);
+    staticServer = http.createServer((request, response) => {
+      try {
+        const pathname = decodeURIComponent(new URL(request.url ?? '/', url).pathname);
+        const relative = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
+        const filePath = path.resolve(webRoot, relative);
+        if (!filePath.startsWith(`${webRoot}${path.sep}`) && filePath !== path.join(webRoot, 'index.html')) {
+          response.writeHead(403).end();
+          return;
+        }
+        const info = statSync(filePath);
+        if (!info.isFile()) { response.writeHead(404).end(); return; }
+        const extension = path.extname(filePath).toLowerCase();
+        response.writeHead(200, { 'Content-Type': contentTypes.get(extension) ?? 'application/octet-stream', 'Cache-Control': 'no-store' });
+        createReadStream(filePath).pipe(response);
+      } catch {
+        response.writeHead(404).end();
       }
-      const info = statSync(filePath);
-      if (!info.isFile()) { response.writeHead(404).end(); return; }
-      const extension = path.extname(filePath).toLowerCase();
-      response.writeHead(200, { 'Content-Type': contentTypes.get(extension) ?? 'application/octet-stream', 'Cache-Control': 'no-store' });
-      createReadStream(filePath).pipe(response);
-    } catch {
-      response.writeHead(404).end();
-    }
-  });
-  await new Promise((resolve, reject) => {
-    staticServer.once('error', reject);
-    staticServer.listen(port, '127.0.0.1', resolve);
-  });
+    });
+    await new Promise((resolve, reject) => {
+      staticServer.once('error', reject);
+      staticServer.listen(port, '127.0.0.1', resolve);
+    });
+  } else {
+    await waitUntil(async () => (await fetch(url, { cache: 'no-store' })).ok, 15_000, 'public Web host');
+  }
 
   const chromeProcess = start(chrome, [
     '--headless=new',
@@ -212,7 +221,39 @@ try {
   if (mobileMetrics.page > mobileMetrics.viewport + 1) throw new Error(`Unexpected document-level mobile overflow: ${JSON.stringify(mobileMetrics)}`);
   if (mobileMetrics.boardScroll <= mobileMetrics.boardClient) throw new Error(`Expected wide board overflow to remain contained inside board-wrap: ${JSON.stringify(mobileMetrics)}`);
 
-  console.log(`browser-smoke=ok outcome=${outcome} placements=3->${countAfterRemove} locale=en mobile=${mobileMetrics.viewport}px`);
+  await clickButtonContaining('Invasion Demo');
+  await waitForExpression(`document.body.innerText.includes('偵察 / 編成') && document.body.innerText.includes('黒鉄坑道')`, 8_000, 'Invasion briefing');
+  const invasionCapacity = await evaluate(`document.querySelector('.invasion-formation .capacity-text')?.textContent.trim()`);
+  if (invasionCapacity !== '12 / 12') throw new Error(`Expected canonical invasion formation capacity 12 / 12, got ${invasionCapacity}`);
+
+  await clickButtonContaining('侵攻開始');
+  await waitForExpression(`document.body.innerText.includes('侵攻戦')`, 5_000, 'Invasion battle');
+  await clickButtonContaining('全軍投入');
+  await clickButtonContaining('3×');
+
+  const invasionOutcome = await waitUntil(async () => {
+    const wardClicked = await evaluate(`(() => { const button = [...document.querySelectorAll('button')].find(x => x.textContent.includes('防護 35 MP') && !x.disabled); if (button) { button.click(); return true; } return false; })()`);
+    if (wardClicked) await new Promise(resolve => setTimeout(resolve, 40));
+    const text = await evaluate(`document.body.innerText`);
+    if (text.includes('侵攻成功')) return '侵攻成功';
+    if (text.includes('部隊壊滅')) return '部隊壊滅';
+    if (text.includes('撤退完了')) return '撤退完了';
+    return false;
+  }, 25_000, 'Invasion result');
+  if (invasionOutcome !== '侵攻成功') throw new Error(`Expected canonical invasion success, got ${invasionOutcome}`);
+
+  const invasionMobileMetrics = await evaluate(`(() => ({ viewport: window.innerWidth, page: document.documentElement.scrollWidth, trackClient: document.querySelector('.section-track')?.clientWidth ?? 0, trackScroll: document.querySelector('.section-track')?.scrollWidth ?? 0 }))()`);
+  if (invasionMobileMetrics.page > invasionMobileMetrics.viewport + 1) throw new Error(`Unexpected invasion document-level mobile overflow: ${JSON.stringify(invasionMobileMetrics)}`);
+  if (invasionMobileMetrics.trackScroll <= invasionMobileMetrics.trackClient) throw new Error(`Expected invasion section track to contain its own mobile overflow: ${JSON.stringify(invasionMobileMetrics)}`);
+
+  await clickButtonContaining('偵察へ戻る');
+  await waitForExpression(`document.body.innerText.includes('偵察 / 編成')`, 3_000, 'Return to invasion briefing');
+  await clickButtonContaining('EN');
+  await waitForExpression(`document.body.innerText.includes('Briefing / Formation') && document.body.innerText.includes('Black Iron Mine')`, 3_000, 'Invasion English locale');
+  await clickButtonContaining('Dungeon Defense');
+  await waitForExpression(`document.body.innerText.includes('Dungeon Build')`, 3_000, 'Return to Defense mode');
+
+  console.log(`browser-smoke=ok defense=${outcome} placements=3->${countAfterRemove} locale=en mobile=${mobileMetrics.viewport}px invasion=${invasionOutcome} invasionLocale=en`);
 } finally {
   try { socket?.close(); } catch {}
   if (staticServer) await new Promise(resolve => staticServer.close(resolve));
@@ -221,5 +262,5 @@ try {
   }
   await new Promise(resolve => setTimeout(resolve, 250));
   try { await rm(profileDir, { recursive: true, force: true }); } catch {}
-  try { await rm(publishDir, { recursive: true, force: true }); } catch {}
+  if (publishDir) { try { await rm(publishDir, { recursive: true, force: true }); } catch {} }
 }
