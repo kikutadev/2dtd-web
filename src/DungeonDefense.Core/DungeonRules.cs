@@ -7,12 +7,27 @@ public sealed record EditResult(bool Success, string? Error, DungeonState State,
 
 public static class DungeonPathfinder
 {
+    /// <summary>Finds the deterministic route from Entrance to the board Endpoint.</summary>
     public static IReadOnlyList<GridPoint> FindRoute(DungeonState state)
+        => FindRoute(state, state.Endpoint);
+
+    /// <summary>
+    /// Finds the deterministic route from Entrance to an arbitrary walkable target while preserving
+    /// the board-owned ingress prefix. This is used by spatial invasion objectives as well as the
+    /// traditional entrance-to-endpoint route.
+    /// </summary>
+    public static IReadOnlyList<GridPoint> FindRoute(DungeonState state, GridPoint target)
     {
+        ArgumentNullException.ThrowIfNull(state);
+        if (!state.InBounds(target) || !state.IsWalkable(target)) return [];
+
         var prefix = state.Ingress.OrderedCells;
         if (prefix.Count == 0 || prefix[0] != state.Entrance) return [];
         for (var i = 1; i < prefix.Count; i++)
             if (!state.CanTraverse(prefix[i - 1], prefix[i])) return [];
+
+        for (var i = 0; i < prefix.Count; i++)
+            if (prefix[i] == target) return prefix.Take(i + 1).ToArray();
 
         var start = prefix[^1];
         var blockedPrefix = prefix.Take(Math.Max(0, prefix.Count - 1)).ToHashSet();
@@ -24,7 +39,7 @@ public static class DungeonPathfinder
         while (queue.Count > 0)
         {
             var current = queue.Dequeue();
-            if (current == state.Core) break;
+            if (current == target) break;
             foreach (var next in GridGeometry.NeighborsNorthEastSouthWest(current))
             {
                 if (blockedPrefix.Contains(next) || !state.InBounds(next) || !state.CanTraverse(current, next) || cameFrom.ContainsKey(next)) continue;
@@ -33,9 +48,9 @@ public static class DungeonPathfinder
             }
         }
 
-        if (!cameFrom.ContainsKey(state.Core)) return [];
+        if (!cameFrom.ContainsKey(target)) return [];
         var suffix = new List<GridPoint>();
-        GridPoint? cursor = state.Core;
+        GridPoint? cursor = target;
         while (cursor is { } point)
         {
             suffix.Add(point);

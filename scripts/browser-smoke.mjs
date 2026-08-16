@@ -13,6 +13,8 @@ const port = Number(process.env.WEB_SMOKE_PORT ?? '5279');
 const debugPort = Number(process.env.WEB_SMOKE_DEBUG_PORT ?? '19433');
 const externalUrl = process.env.WEB_SMOKE_BASE_URL?.trim();
 const capturePath = process.env.WEB_SMOKE_CAPTURE_PATH?.trim();
+const buildCapturePath = process.env.WEB_SMOKE_BUILD_CAPTURE_PATH?.trim();
+const battleCapturePath = process.env.WEB_SMOKE_BATTLE_CAPTURE_PATH?.trim();
 const defenseCapturePath = process.env.WEB_SMOKE_DEFENSE_CAPTURE_PATH?.trim();
 const url = externalUrl ? (externalUrl.endsWith('/') ? externalUrl : `${externalUrl}/`) : `http://127.0.0.1:${port}/`;
 const chrome = process.env.CHROME_BIN ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -74,6 +76,16 @@ async function evaluate(expression) {
 
 async function waitForExpression(expression, timeoutMs, label) {
   return waitUntil(async () => await evaluate(expression), timeoutMs, label);
+}
+
+async function captureViewport(relativePath, width = 844, height = 390) {
+  if (!relativePath) return;
+  await cdp('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: true });
+  await new Promise(resolve => setTimeout(resolve, 250));
+  const screenshot = await cdp('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+  const resolvedCapturePath = path.resolve(repoRoot, relativePath);
+  await mkdir(path.dirname(resolvedCapturePath), { recursive: true });
+  await writeFile(resolvedCapturePath, Buffer.from(screenshot.data, 'base64'));
 }
 
 async function clickButtonContaining(text) {
@@ -190,9 +202,12 @@ try {
   const countBeforeBattle = await evaluate(`document.querySelector('.status-row > div:last-child strong')?.textContent.trim()`);
   if (countBeforeBattle !== '3') throw new Error(`Expected 3 placements before battle, got ${countBeforeBattle}`);
 
+  await captureViewport(buildCapturePath);
+
   await clickButtonContaining('この構成で防衛開始');
   await waitForExpression(`document.body.innerText.includes('防衛中')`, 5_000, 'Defense phase');
   await clickButtonContaining('3×');
+  await captureViewport(battleCapturePath);
 
   const outcome = await waitUntil(async () => {
     const text = await evaluate(`document.body.innerText`);
@@ -201,14 +216,7 @@ try {
     return false;
   }, 20_000, 'Defense result');
 
-  if (defenseCapturePath) {
-    await cdp('Emulation.setDeviceMetricsOverride', { width: 844, height: 390, deviceScaleFactor: 1, mobile: true });
-    await new Promise(resolve => setTimeout(resolve, 250));
-    const screenshot = await cdp('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
-    const resolvedCapturePath = path.resolve(repoRoot, defenseCapturePath);
-    await mkdir(path.dirname(resolvedCapturePath), { recursive: true });
-    await writeFile(resolvedCapturePath, Buffer.from(screenshot.data, 'base64'));
-  }
+  await captureViewport(defenseCapturePath);
 
   await clickButtonContaining('構築に戻る');
   await waitForExpression(`document.body.innerText.includes('ダンジョン構築')`, 5_000, 'Return to Build');

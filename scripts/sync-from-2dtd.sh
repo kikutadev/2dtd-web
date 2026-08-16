@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # Synchronize the production C# gameplay projects and browser-visible content from
-# the sibling 2dTD repository. By default, a dirty source tree is rejected so the
-# recorded Git revision remains a reproducible description of the snapshot.
+# the sibling 2dTD repository. Reproducibility is determined from the paths actually
+# copied into Web; unrelated Godot/docs work may remain dirty during parallel work.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WEB_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -90,15 +90,29 @@ require_path "$SOURCE_ROOT/content/invasion-vertical-slice.json"
 require_path "$SOURCE_ROOT/godot/assets/production"
 
 SOURCE_REVISION="$(git -C "$SOURCE_ROOT" rev-parse HEAD)"
-SOURCE_STATUS="$(git -C "$SOURCE_ROOT" status --porcelain --untracked-files=normal -- .)"
+SNAPSHOT_PATHS=(
+  src/DungeonDefense.Core
+  src/DungeonDefense.Contracts
+  src/DungeonDefense.Application
+  src/DungeonDefense.Presentation
+  content/vertical-slice.json
+  content/invasion-vertical-slice.json
+  godot/assets/production
+)
+SOURCE_STATUS="$(git -C "$SOURCE_ROOT" status --porcelain --untracked-files=normal -- "${SNAPSHOT_PATHS[@]}")"
 SOURCE_DIRTY=0
 if [[ -n "$SOURCE_STATUS" ]]; then
   SOURCE_DIRTY=1
 fi
+REPOSITORY_STATUS="$(git -C "$SOURCE_ROOT" status --porcelain --untracked-files=normal -- .)"
+REPOSITORY_DIRTY=0
+if [[ -n "$REPOSITORY_STATUS" ]]; then
+  REPOSITORY_DIRTY=1
+fi
 
 if [[ "$SOURCE_DIRTY" -eq 1 && "$ALLOW_DIRTY" -ne 1 ]]; then
-  echo "error: source 2dTD tree is dirty; refusing to create a misleading revision snapshot." >&2
-  echo "       Commit/stash the source changes, or use --allow-dirty for a local non-reproducible preview." >&2
+  echo "error: Web snapshot source paths are dirty; refusing to record a misleading revision snapshot." >&2
+  echo "       Commit/stash changes under shared src/content/production-assets, or use --allow-dirty for a local preview." >&2
   exit 3
 fi
 
@@ -132,7 +146,9 @@ sync_file() {
 echo "Source:   $SOURCE_ROOT"
 echo "Revision: $SOURCE_REVISION"
 if [[ "$SOURCE_DIRTY" -eq 1 ]]; then
-  echo "State:    dirty (local preview; not reproducible from revision alone)"
+  echo "State:    snapshot paths dirty (local preview; not reproducible from revision alone)"
+elif [[ "$REPOSITORY_DIRTY" -eq 1 ]]; then
+  echo "State:    snapshot paths clean (unrelated source-repository changes ignored)"
 else
   echo "State:    clean"
 fi
@@ -208,7 +224,8 @@ fi
 cat > "$WEB_ROOT/SOURCE_REVISION.txt" <<EOF
 Source project: 2dTD
 Source game revision: $SOURCE_REVISION
-Source tree dirty: $DIRTY_LABEL
+Source snapshot paths dirty: $DIRTY_LABEL
+Source repository has unrelated changes: $( [[ "$REPOSITORY_DIRTY" -eq 1 ]] && echo yes || echo no )
 Reproducible from revision alone: $REPRODUCIBLE_LABEL
 Snapshot date: $(date +%Y-%m-%d)
 Shared projects: DungeonDefense.Core, DungeonDefense.Contracts, DungeonDefense.Application, DungeonDefense.Presentation

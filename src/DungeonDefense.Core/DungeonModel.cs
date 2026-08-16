@@ -124,7 +124,14 @@ public sealed class DungeonState
     public int Width { get; }
     public int Height { get; }
     public GridPoint Entrance { get; }
+    /// <summary>
+    /// Historical name for the board endpoint coordinate. New mode-neutral code should prefer <see cref="Endpoint"/>.
+    /// </summary>
     public GridPoint Core { get; }
+    /// <summary>
+    /// Mode-neutral destination coordinate for this board. Player-defense code may still present this as the Dungeon Core.
+    /// </summary>
+    public GridPoint Endpoint => Core;
     public int CapacityMax { get; }
     public DungeonIngressGeometry Ingress { get; }
     public IReadOnlyCollection<DungeonSector> Sectors => _sectors.Values.OrderBy(x => x.Id, StringComparer.Ordinal).ToArray();
