@@ -28,6 +28,8 @@ internal sealed class DefenseDemo
     public DefenseGameSession Session { get; private set; } = null!;
     public DefenseSimulation? Simulation { get; private set; }
     public CombatVisualState VisualState => _presentation.VisualState;
+    public DefenseHudVisualState? HudState => Simulation is { } simulation ? DefenseProductPresentation.BuildHud(simulation, autoBattleEnabled: false) : null;
+    public DefenseResultVisualState? ResultState => Simulation is { Outcome: not DefenseOutcome.Running } simulation ? DefenseProductPresentation.BuildResult(simulation) : null;
     public DungeonState Board => Session.Dungeon.Floors[0].Board;
     public DefenseOutcome Outcome => Simulation?.Outcome ?? DefenseOutcome.Running;
 

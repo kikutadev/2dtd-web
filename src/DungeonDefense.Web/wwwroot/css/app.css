@@ -199,3 +199,99 @@ button:disabled { cursor: not-allowed; opacity: .46; }
   .formation-unit img, .party-unit img { width: 40px; height: 40px; }
   .invasion-controls { grid-template-columns: 1fr; }
 }
+
+
+/* Shared Product Presentation: invasion battlefield keeps the same Reserve → Frontline → Fortification metaphor as Godot. */
+.invasion-battlefield { display: grid; grid-template-columns: minmax(86px,.7fr) 28px minmax(220px,2fr) 28px minmax(138px,.9fr); gap: .45rem; align-items: stretch; min-height: 168px; padding: .55rem; border: 1px solid #304049; background: radial-gradient(circle at 58% 48%, rgba(61,102,103,.14), transparent 36%), #0b1114; overflow: hidden; }
+.battle-lane, .fortification-lane { min-width: 0; border: 1px solid #324149; background: rgba(14,21,25,.76); padding: .45rem; display: grid; align-content: center; gap: .4rem; }
+.reserve-lane { opacity: .78; }
+.frontline-lane { border-color: #456d70; background: rgba(18,34,37,.72); }
+.battle-lane-heading { display: flex; justify-content: space-between; gap: .5rem; color: #89999f; font-size: .63rem; }
+.battle-lane-heading strong { color: #bad5d5; }
+.battle-unit-row { display: flex; flex-wrap: wrap; justify-content: center; align-items: end; gap: .24rem; min-height: 74px; }
+.battle-unit { width: 52px; display: grid; justify-items: center; gap: .12rem; }
+.battle-unit.reserve { width: 30px; opacity: .68; }
+.battle-unit img { width: 100%; aspect-ratio: 1; object-fit: contain; image-rendering: pixelated; filter: drop-shadow(0 2px 2px rgba(0,0,0,.65)); }
+.battle-unit small { color: #8fc6cf; font-size: .58rem; }
+.battle-empty { margin: 0; align-self: center; color: #6f7f85; font-size: .68rem; text-align: center; }
+.battle-advance { display: grid; place-items: center; color: #d48b3e; font-size: 1.35rem; text-shadow: 0 0 8px rgba(212,139,62,.24); }
+.fortification-lane { text-align: center; border-color: #5f4435; background: rgba(31,21,17,.72); }
+.fortification-stage { min-height: 66px; display: grid; place-items: center; background-image: url('../assets/production/tiles/TS-01.png'); background-repeat: repeat; background-size: 32px 32px; image-rendering: pixelated; box-shadow: inset 0 0 26px rgba(0,0,0,.62); }
+.fortification-stage img { width: min(100%, 150px); max-height: 62px; object-fit: contain; image-rendering: pixelated; filter: drop-shadow(0 3px 4px rgba(0,0,0,.7)); }
+.fortification-hud { display: grid; gap: .22rem; font-size: .65rem; }
+.fortification-hud strong { color: #d79a57; }
+.fortification-hud small { color: #88796e; line-height: 1.3; }
+.fortification-hud > span { color: #c6b6aa; }
+.battle-latest-event { min-height: 1.7rem; display: grid; place-items: center; padding: .35rem .55rem; border-top: 1px solid #26343a; color: #8d9aa0; font-size: .7rem; text-align: center; }
+.deploy-commands { grid-template-columns: 1fr; }
+@media (max-width: 760px) {
+  .invasion-battlefield { grid-template-columns: minmax(72px,.7fr) 22px minmax(190px,2fr) 22px minmax(122px,.9fr); overflow-x: auto; }
+}
+@media (max-width: 520px) {
+  .invasion-battlefield { min-width: 620px; }
+  .invasion-battle-body { overflow-x: auto; }
+}
+
+/* Defense result uses the same world-first hierarchy as the Godot result: Core state, outcome, then analysis. */
+.defense-result-panel { display: grid; grid-template-columns: 68px minmax(0,1fr) minmax(180px,.8fr); gap: .8rem; align-items: center; padding: .7rem .8rem; border-top: 1px solid #35434a; background: rgba(15,23,27,.94); }
+.defense-result-panel.success { box-shadow: inset 4px 0 0 #4e796a; }
+.defense-result-panel.failure { box-shadow: inset 4px 0 0 #855046; }
+.result-core { width: 64px; height: 64px; object-fit: contain; image-rendering: pixelated; filter: drop-shadow(0 3px 4px rgba(0,0,0,.65)); }
+.result-outcome { min-width: 0; }
+.result-outcome > span { color: #77878e; font-size: .62rem; text-transform: uppercase; letter-spacing: .08em; }
+.result-outcome h2 { margin: .12rem 0 .2rem; font-size: 1.08rem; color: #d4dfe1; }
+.result-outcome p { margin: 0; color: #8e9ca2; font-size: .68rem; line-height: 1.4; }
+.result-impact-grid { display: grid; grid-template-columns: 1fr auto; gap: .25rem .6rem; font-size: .66rem; }
+.result-impact-grid span { color: #77878e; }
+.result-impact-grid strong { color: #c8d2d6; text-align: right; }
+@media (max-width: 520px) {
+  .defense-result-panel { grid-template-columns: 54px 1fr; }
+  .result-core { width: 50px; height: 50px; }
+  .result-impact-grid { grid-column: 1 / -1; }
+}
+
+.defense-result-screen { min-height: 270px; padding: 1rem; display: grid; grid-template-columns: minmax(0,1.35fr) minmax(210px,.75fr); grid-template-rows: auto 1fr; gap: .8rem 1rem; align-content: center; background: radial-gradient(circle at 20% 48%, rgba(82,129,119,.12), transparent 30%), #0b1114; }
+.defense-result-screen.failure { background: radial-gradient(circle at 20% 48%, rgba(133,80,70,.15), transparent 30%), #0b1114; }
+.result-world-state { display: grid; grid-template-columns: 92px minmax(0,1fr); align-items: center; gap: .9rem; min-width: 0; }
+.result-core-large { width: 86px; height: 86px; object-fit: contain; image-rendering: pixelated; filter: drop-shadow(0 4px 7px rgba(0,0,0,.7)); }
+.result-impact-large { align-self: center; padding: .75rem; border: 1px solid #334047; background: rgba(15,23,27,.74); }
+.result-floor-strip { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit,minmax(120px,1fr)); gap: .45rem; align-self: end; }
+.result-floor { padding: .55rem .6rem; border: 1px solid #344148; background: #10171b; display: grid; gap: .12rem; }
+.result-floor.breached { border-color: #775047; background: #211613; }
+.result-floor.held { border-color: #476b62; background: #10201b; }
+.result-floor span, .result-floor small { color: #78878d; font-size: .59rem; }
+.result-floor strong { color: #c9d3d6; font-size: .72rem; }
+.result-actions { grid-template-columns: 1fr; }
+.result-action-hint { padding: .2rem .15rem; line-height: 1.5; }
+@media (max-width: 520px) {
+  .defense-result-screen { grid-template-columns: 1fr; min-height: 320px; }
+  .result-world-state { grid-template-columns: 66px 1fr; }
+  .result-core-large { width: 62px; height: 62px; }
+  .result-floor-strip { grid-column: 1; grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+
+/* Invasion preparation follows the product decision sequence: location → scouting → formation. */
+.invasion-selection-list { padding: .75rem; display: grid; gap: .5rem; align-content: start; }
+.invasion-selection-card { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: .7rem; align-items: center; padding: .65rem .7rem; border: 1px solid #344249; background: rgba(15,22,26,.82); }
+.invasion-selection-card > div:first-child, .scout-card-main { min-width: 0; display: grid; gap: .18rem; }
+.invasion-selection-card strong { color: #cdd8da; font-size: .82rem; }
+.invasion-selection-card span, .invasion-selection-card small { color: #819096; font-size: .63rem; line-height: 1.35; }
+.invasion-selection-card.disabled { opacity: .55; }
+.selection-progress { color: #91a2a7; font-size: .64rem; white-space: nowrap; }
+.scout-card { grid-template-columns: minmax(0,1fr) auto auto; }
+.formation-target-summary { padding: .85rem; display: grid; gap: .85rem; align-content: start; }
+@media (max-width: 520px) {
+  .invasion-selection-card, .scout-card { grid-template-columns: 1fr auto; }
+  .invasion-selection-card > div:first-child, .scout-card-main { grid-column: 1 / -1; }
+}
+
+.invasion-result-body { min-height: 270px; padding: 1rem; display: grid; grid-template-columns: minmax(0,1fr) minmax(230px,.8fr); grid-template-rows: auto 1fr; gap: .9rem 1rem; align-content: center; background: radial-gradient(circle at 18% 42%, rgba(78,121,106,.15), transparent 32%), #0b1114; }
+.invasion-result-body.failure { background: radial-gradient(circle at 18% 42%, rgba(133,80,70,.16), transparent 32%), #0b1114; }
+.invasion-result-body.retreated { background: radial-gradient(circle at 18% 42%, rgba(119,100,72,.16), transparent 32%), #0b1114; }
+.invasion-result-outcome { align-self: center; }
+.invasion-result-stats { align-self: center; padding: .75rem; border: 1px solid #344148; background: rgba(15,23,27,.78); }
+.invasion-result-body .result-floor-strip { grid-column: 1 / -1; }
+@media (max-width: 520px) {
+  .invasion-result-body { grid-template-columns: 1fr; min-height: 320px; }
+  .invasion-result-body .result-floor-strip { grid-column: 1; }
+}

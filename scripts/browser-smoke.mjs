@@ -2,7 +2,7 @@
 import { execFileSync, spawn } from 'node:child_process';
 import { createReadStream, statSync } from 'node:fs';
 import http from 'node:http';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +12,8 @@ const repoRoot = path.resolve(scriptDir, '..');
 const port = Number(process.env.WEB_SMOKE_PORT ?? '5279');
 const debugPort = Number(process.env.WEB_SMOKE_DEBUG_PORT ?? '19433');
 const externalUrl = process.env.WEB_SMOKE_BASE_URL?.trim();
+const capturePath = process.env.WEB_SMOKE_CAPTURE_PATH?.trim();
+const defenseCapturePath = process.env.WEB_SMOKE_DEFENSE_CAPTURE_PATH?.trim();
 const url = externalUrl ? (externalUrl.endsWith('/') ? externalUrl : `${externalUrl}/`) : `http://127.0.0.1:${port}/`;
 const chrome = process.env.CHROME_BIN ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const profileDir = await mkdtemp(path.join(os.tmpdir(), '2dtd-web-smoke-profile-'));
@@ -199,6 +201,15 @@ try {
     return false;
   }, 20_000, 'Defense result');
 
+  if (defenseCapturePath) {
+    await cdp('Emulation.setDeviceMetricsOverride', { width: 844, height: 390, deviceScaleFactor: 1, mobile: true });
+    await new Promise(resolve => setTimeout(resolve, 250));
+    const screenshot = await cdp('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+    const resolvedCapturePath = path.resolve(repoRoot, defenseCapturePath);
+    await mkdir(path.dirname(resolvedCapturePath), { recursive: true });
+    await writeFile(resolvedCapturePath, Buffer.from(screenshot.data, 'base64'));
+  }
+
   await clickButtonContaining('構築に戻る');
   await waitForExpression(`document.body.innerText.includes('ダンジョン構築')`, 5_000, 'Return to Build');
 
@@ -221,14 +232,45 @@ try {
   if (mobileMetrics.page > mobileMetrics.viewport + 1) throw new Error(`Unexpected document-level mobile overflow: ${JSON.stringify(mobileMetrics)}`);
   if (mobileMetrics.boardScroll <= mobileMetrics.boardClient) throw new Error(`Expected wide board overflow to remain contained inside board-wrap: ${JSON.stringify(mobileMetrics)}`);
 
-  await clickButtonContaining('Invasion Demo');
-  await waitForExpression(`document.body.innerText.includes('偵察 / 編成') && document.body.innerText.includes('黒鉄坑道')`, 8_000, 'Invasion briefing');
+  await clickButtonContaining('Invasion');
+  await waitForExpression(`document.body.innerText.includes('侵攻先') && document.body.innerText.includes('黒鉄坑道')`, 8_000, 'Invasion locations');
+  await clickButtonContaining('確認');
+  await waitForExpression(`document.body.innerText.includes('偵察') && document.body.innerText.includes('地下1階')`, 3_000, 'Invasion scouting');
+  await clickButtonContaining('部隊編成');
+  await waitForExpression(`document.body.innerText.includes('編成') && document.body.innerText.includes('侵攻開始')`, 3_000, 'Invasion formation');
   const invasionCapacity = await evaluate(`document.querySelector('.invasion-formation .capacity-text')?.textContent.trim()`);
   if (invasionCapacity !== '12 / 12') throw new Error(`Expected canonical invasion formation capacity 12 / 12, got ${invasionCapacity}`);
 
   await clickButtonContaining('侵攻開始');
   await waitForExpression(`document.body.innerText.includes('侵攻戦')`, 5_000, 'Invasion battle');
-  await clickButtonContaining('全軍投入');
+  const battlefieldSemantics = await evaluate(`(() => ({
+    battlefield: !!document.querySelector('.invasion-battlefield'),
+    reserve: !!document.querySelector('.reserve-lane'),
+    frontline: !!document.querySelector('.frontline-lane'),
+    fortification: document.querySelector('.fortification-stage img')?.getAttribute('src') ?? ''
+  }))()`);
+  if (!battlefieldSemantics.battlefield || !battlefieldSemantics.reserve || !battlefieldSemantics.frontline || !battlefieldSemantics.fortification.includes('IV-01'))
+    throw new Error(`Invasion battlefield product semantics missing: ${JSON.stringify(battlefieldSemantics)}`);
+  for (let index = 0; index < 12; index++) {
+    const deployed = await evaluate(`(() => { const button = document.querySelector('.deploy-commands button.primary:not(:disabled)'); if (!button) return false; button.click(); return true; })()`);
+    if (!deployed) break;
+    await new Promise(resolve => setTimeout(resolve, 60));
+  }
+  await waitForExpression(`document.querySelectorAll('.frontline-lane .battle-unit.active').length >= 6`, 3_000, 'Invasion frontline deployment');
+  if (capturePath) {
+    await cdp('Emulation.setDeviceMetricsOverride', { width: 844, height: 390, deviceScaleFactor: 1, mobile: true });
+    await new Promise(resolve => setTimeout(resolve, 250));
+    const screenshot = await cdp('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+    const resolvedCapturePath = path.resolve(repoRoot, capturePath);
+    await mkdir(path.dirname(resolvedCapturePath), { recursive: true });
+    await writeFile(resolvedCapturePath, Buffer.from(screenshot.data, 'base64'));
+    await cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+    await new Promise(resolve => setTimeout(resolve, 150));
+  }
+  const invasionMobileMetrics = await evaluate(`(() => ({ viewport: window.innerWidth, page: document.documentElement.scrollWidth, battleClient: document.querySelector('.invasion-battle-body')?.clientWidth ?? 0, battleScroll: document.querySelector('.invasion-battle-body')?.scrollWidth ?? 0 }))()`);
+  if (invasionMobileMetrics.page > invasionMobileMetrics.viewport + 1) throw new Error(`Unexpected invasion document-level mobile overflow: ${JSON.stringify(invasionMobileMetrics)}`);
+  if (invasionMobileMetrics.battleScroll <= invasionMobileMetrics.battleClient) throw new Error(`Expected narrow viewport invasion battlefield overflow to remain contained inside battle body: ${JSON.stringify(invasionMobileMetrics)}`);
+
   await clickButtonContaining('3×');
 
   const invasionOutcome = await waitUntil(async () => {
@@ -242,15 +284,13 @@ try {
   }, 25_000, 'Invasion result');
   if (invasionOutcome !== '侵攻成功') throw new Error(`Expected canonical invasion success, got ${invasionOutcome}`);
 
-  const invasionMobileMetrics = await evaluate(`(() => ({ viewport: window.innerWidth, page: document.documentElement.scrollWidth, trackClient: document.querySelector('.section-track')?.clientWidth ?? 0, trackScroll: document.querySelector('.section-track')?.scrollWidth ?? 0 }))()`);
-  if (invasionMobileMetrics.page > invasionMobileMetrics.viewport + 1) throw new Error(`Unexpected invasion document-level mobile overflow: ${JSON.stringify(invasionMobileMetrics)}`);
-  if (invasionMobileMetrics.trackScroll <= invasionMobileMetrics.trackClient) throw new Error(`Expected invasion section track to contain its own mobile overflow: ${JSON.stringify(invasionMobileMetrics)}`);
-
   await clickButtonContaining('偵察へ戻る');
-  await waitForExpression(`document.body.innerText.includes('偵察 / 編成')`, 3_000, 'Return to invasion briefing');
+  await waitForExpression(`document.body.innerText.includes('偵察') && document.body.innerText.includes('黒鉄坑道')`, 3_000, 'Return to invasion scouting');
   await clickButtonContaining('EN');
-  await waitForExpression(`document.body.innerText.includes('Briefing / Formation') && document.body.innerText.includes('Black Iron Mine')`, 3_000, 'Invasion English locale');
-  await clickButtonContaining('Dungeon Defense');
+  await waitForExpression(`document.body.innerText.includes('Targets') && document.body.innerText.includes('Black Iron Mine')`, 3_000, 'Invasion English locale');
+  await clickButtonContaining('Targets');
+  await waitForExpression(`document.body.innerText.includes('Targets') && document.body.innerText.includes('Black Iron Mine')`, 3_000, 'Return to invasion locations');
+  await clickButtonContaining('Defense');
   await waitForExpression(`document.body.innerText.includes('Dungeon Build')`, 3_000, 'Return to Defense mode');
 
   console.log(`browser-smoke=ok defense=${outcome} placements=3->${countAfterRemove} locale=en mobile=${mobileMetrics.viewport}px invasion=${invasionOutcome} invasionLocale=en`);

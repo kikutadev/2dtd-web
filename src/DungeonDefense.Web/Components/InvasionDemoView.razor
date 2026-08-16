@@ -1,5 +1,6 @@
 @implements IAsyncDisposable
 @using DungeonDefense.Core
+@using DungeonDefense.Presentation
 @using System.Diagnostics
 @inject HttpClient Http
 
@@ -12,19 +13,19 @@ else
     <div class="app-shell invasion-shell">
         <header class="topbar">
             <div>
-                <div class="eyebrow">2dTD · SECTION-BASED PLAYABLE DEMO</div>
                 <h1>@T("title")</h1>
             </div>
             <div class="top-actions">
-                <button class="mode-link" @onclick="Back">← @T("back")</button>
+                @if (_demo.Simulation is null)
+                {
+                    <button class="mode-link" @onclick="NavigateBack">← @PreparationBackLabel</button>
+                }
                 <div class="locale-picker">
                     <button class="@(_locale == WebDemoLocalization.Japanese ? "active" : null)" @onclick="() => SetLocale(WebDemoLocalization.Japanese)">日本語</button>
                     <button class="@(_locale == WebDemoLocalization.English ? "active" : null)" @onclick="() => SetLocale(WebDemoLocalization.English)">EN</button>
                 </div>
             </div>
         </header>
-
-        <div class="demo-guide"><span>INVASION</span><strong>@T(_demo.Simulation is null ? "briefing_desc" : "footer")</strong></div>
 
         <section class="status-row">
             <div><span>@T("location")</span><strong>@LocationName(_demo.SelectedLocation.Id)</strong></div>
@@ -38,79 +39,140 @@ else
         {
             <main class="game-layout invasion-layout">
                 <section class="world-card invasion-briefing">
-                    <div class="world-heading"><div><strong>@T("briefing")</strong><span>@T("briefing_desc")</span></div></div>
-                    <div class="invasion-scout-body">
-                        <div class="scout-selector">
-                            <div class="section-label">@T("location")</div>
-                            <div class="choice-row">
-                                @foreach (var location in _demo.Content.Locations)
-                                {
-                                    <button class="@(location.Id == _demo.SelectedLocationId ? "selected" : null)" @onclick="() => SelectLocation(location.Id)">@LocationName(location.Id)</button>
-                                }
-                            </div>
-                            <div class="section-label">@T("floor")</div>
-                            <div class="choice-row">
-                                @foreach (var floor in _demo.SelectedLocation.Floors)
-                                {
-                                    <button class="@(floor.Id == _demo.SelectedFloorId ? "selected" : null)" @onclick="() => SelectFloor(floor.Id)">@FloorName(floor)</button>
-                                }
-                            </div>
-                        </div>
-
-                        <div class="threat-block">
-                            <div class="section-label">@T("threats")</div>
-                            <div class="threat-tags">
-                                @foreach (var tag in _demo.SelectedFloor.ThreatTags)
-                                {
-                                    <span>@ThreatName(tag)</span>
-                                }
-                            </div>
-                        </div>
-
-                        <div class="section-label">@T("route")</div>
-                        <div class="section-track briefing-track">
-                            @for (var index = 0; index < _demo.SelectedFloor.Sections.Count; index++)
+                    @if (_preBattleStage == InvasionPreparationStage.Locations)
+                    {
+                        var locations = _demo.LocationsState;
+                        <div class="world-heading"><div><strong>@T("locations")</strong><span>@T("locations_desc")</span></div></div>
+                        <div class="invasion-selection-list">
+                            @foreach (var location in locations.Locations)
                             {
-                                var section = _demo.SelectedFloor.Sections[index];
-                                <div class="invasion-section">
-                                    <span>@SectionLabel(index)</span>
-                                    <strong>@(section.DefenseHp) HP</strong>
-                                    <small>@ResourceText(section.Loot)</small>
-                                </div>
+                                <article class="invasion-selection-card">
+                                    <div>
+                                        <strong>@LocationName(location.LocationId)</strong>
+                                        <span>@T("available_floors") @location.AvailableFloorCount / @location.FloorCount</span>
+                                    </div>
+                                    <div class="selection-progress">@T("unlocked") @location.UnlockedFloorCount / @location.FloorCount</div>
+                                    <button class="primary" @onclick="() => SelectLocation(location.LocationId)">@T("inspect")</button>
+                                </article>
                             }
                         </div>
-
-                        <div class="scout-rewards">
-                            <div><span>@T("visible_loot")</span><strong>@ResourceText(_demo.VisibleSectionLoot)</strong></div>
-                            <div><span>@T("clear_reward")</span><strong>@ResourceText(_demo.SelectedFloor.FirstClearReward)</strong></div>
+                    }
+                    else if (_preBattleStage == InvasionPreparationStage.Scout)
+                    {
+                        var scout = _demo.ScoutState;
+                        <div class="world-heading"><div><strong>@LocationName(scout.LocationId)</strong><span>@T("scout_desc")</span></div></div>
+                        <div class="invasion-selection-list scout-list">
+                            @foreach (var floor in scout.Floors)
+                            {
+                                <article class="invasion-selection-card scout-card @(floor.IsUnlocked && floor.IsAvailable ? null : "disabled")">
+                                    <div class="scout-card-main">
+                                        <strong>@FloorName(floor.Depth) · @ObjectiveName(floor.Objective)</strong>
+                                        <span>@T("sections") @floor.SectionCount · @string.Join(" · ", floor.ThreatTags.Select(ThreatName))</span>
+                                        <small>@T("visible_loot"): @ResourceText(floor.VisibleSectionLoot)</small>
+                                        <small>@T("clear_reward"): @ResourceText(floor.ClearReward)</small>
+                                    </div>
+                                    <div class="selection-progress">@(floor.IsFirstClear ? T("first_clear") : T("repeat"))</div>
+                                    <button class="primary" disabled="@(!floor.IsUnlocked || !floor.IsAvailable)" @onclick="() => SelectFloor(floor.FloorId)">@T("form_party")</button>
+                                </article>
+                            }
                         </div>
-                    </div>
+                    }
+                    else
+                    {
+                        var formation = _demo.FormationState;
+                        <div class="world-heading"><div><strong>@T("formation")</strong><span>@LocationName(formation.LocationId) · @FloorName(formation.Depth) · @ObjectiveName(formation.Objective)</span></div></div>
+                        <div class="formation-target-summary">
+                            <div class="threat-block">
+                                <div class="section-label">@T("threats")</div>
+                                <div class="threat-tags">
+                                    @foreach (var tag in _demo.SelectedScoutReport.ThreatTags) { <span>@ThreatName(tag)</span> }
+                                </div>
+                            </div>
+                            <div class="scout-rewards">
+                                <div><span>@T("visible_loot")</span><strong>@ResourceText(_demo.SelectedScoutReport.VisibleSectionLoot)</strong></div>
+                                <div><span>@T("clear_reward")</span><strong>@ResourceText(_demo.SelectedScoutReport.ClearReward)</strong></div>
+                            </div>
+                            <p class="muted">@T("formation_hint")</p>
+                        </div>
+                    }
                 </section>
 
                 <aside class="control-card invasion-formation">
-                    <div class="section-label">@T("formation")</div>
-                    <p class="muted">@T("formation_hint")</p>
-                    @foreach (var unitId in _demo.FormationUnitIds)
+                    @if (_preBattleStage == InvasionPreparationStage.Locations)
                     {
-                        <div class="formation-unit">
-                            <img src="@UnitAsset(unitId)" alt="@UnitName(unitId)" />
-                            <div><strong>@UnitName(unitId)</strong><small>@RoleName(unitId) · @_demo.Content.UnitDeploymentCosts[unitId] cap</small></div>
-                            <div class="count-stepper">
-                                <button @onclick="() => AdjustFormation(unitId, -1)" disabled="@(_demo.Formation[unitId] == 0)">−</button>
-                                <span>@_demo.Formation[unitId]</span>
-                                <button @onclick="() => AdjustFormation(unitId, 1)" disabled="@(!CanAdd(unitId))">＋</button>
-                            </div>
-                        </div>
+                        <div class="section-label">@T("objective")</div>
+                        <p class="muted">@T("locations_side_hint")</p>
                     }
-                    <div class="capacity-meter"><span style="width:@CapacityPercent%"></span></div>
-                    <div class="capacity-text">@_demo.UsedDeploymentCapacity / @_demo.DeploymentCapacity</div>
-                    <button class="primary invasion-start" @onclick="StartInvasion" disabled="@(!_demo.CanStart)">@T("start")</button>
-                    @if (!string.IsNullOrWhiteSpace(_notice)) { <p class="notice">@_notice</p> }
+                    else if (_preBattleStage == InvasionPreparationStage.Scout)
+                    {
+                        <div class="section-label">@T("scouting")</div>
+                        <p class="muted">@T("scout_side_hint")</p>
+                    }
+                    else
+                    {
+                        var formation = _demo.FormationState;
+                        <div class="section-label">@T("formation")</div>
+                        @foreach (var unit in formation.Units)
+                        {
+                            <div class="formation-unit">
+                                <img src="@AssetUrl(unit.Asset)" alt="@UnitName(unit.DefinitionId)" />
+                                <div><strong>@UnitName(unit.DefinitionId)</strong><small>@RoleName(unit.DefinitionId) · @unit.DeploymentCost cap</small></div>
+                                <div class="count-stepper">
+                                    <button @onclick="() => AdjustFormation(unit.DefinitionId, -1)" disabled="@(unit.Count == 0)">−</button>
+                                    <span>@unit.Count</span>
+                                    <button @onclick="() => AdjustFormation(unit.DefinitionId, 1)" disabled="@(!CanAdd(unit.DefinitionId))">＋</button>
+                                </div>
+                            </div>
+                        }
+                        <div class="capacity-meter"><span style="width:@CapacityPercent%"></span></div>
+                        <div class="capacity-text">@formation.UsedCapacity / @formation.Capacity</div>
+                        <button class="primary invasion-start" @onclick="StartInvasion" disabled="@(!formation.CanStart)">@T("start")</button>
+                        @if (!string.IsNullOrWhiteSpace(_notice)) { <p class="notice">@_notice</p> }
+                    }
+                </aside>
+            </main>
+        }
+        else if (_demo.ResultState is { } result)
+        {
+            <main class="game-layout invasion-layout">
+                <section class="world-card invasion-result-screen">
+                    <div class="world-heading"><div><strong>@T("result")</strong><span>@LocationName(result.LocationId) · @FloorName(result.FloorDepth) · @ObjectiveName(result.Objective)</span></div></div>
+                    <div class="invasion-result-body @OutcomeClass">
+                        <div class="result-outcome invasion-result-outcome">
+                            <span>@T("result")</span>
+                            <h2>@OutcomeText</h2>
+                            <p>@T(result.LessonMessageKey)</p>
+                        </div>
+                        <div class="result-impact-grid invasion-result-stats">
+                            <span>@T("force")</span><strong>@result.Survivors / @result.TotalUnits</strong>
+                            <span>@T("defeated")</span><strong>@result.DefeatedCount</strong>
+                            <span>@T("progress")</span><strong>@result.ReachedSection / @result.SectionCount</strong>
+                            <span>@T("secured")</span><strong>@ResourceText(result.SecuredLoot)</strong>
+                        </div>
+                        <div class="result-floor-strip">
+                            @for (var index = 0; index < result.SectionCount; index++)
+                            {
+                                var reached = index < result.ReachedSection;
+                                <div class="result-floor @(reached ? "held" : null)">
+                                    <span>@SectionLabel(index)</span>
+                                    <strong>@(reached ? T("section_reached") : T("section_unreached"))</strong>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </section>
+                <aside class="control-card invasion-controls">
+                    <div class="control-group result-actions">
+                        <div class="section-label">@T("result_next")</div>
+                        <button class="primary" @onclick="ReturnToBriefing">@T("again")</button>
+                    </div>
+                    <p class="muted result-action-hint">@T("result_hint")</p>
                 </aside>
             </main>
         }
         else
         {
+            var battle = _demo.VisualState!;
             <main class="game-layout invasion-layout">
                 <section class="world-card invasion-battle">
                     <div class="world-heading">
@@ -124,91 +186,99 @@ else
                     </div>
                     <div class="invasion-battle-body">
                         <div class="section-track battle-track">
-                            @for (var index = 0; index < _demo.SelectedFloor.Sections.Count; index++)
+                            @foreach (var section in battle.Sections)
                             {
-                                var section = _demo.SelectedFloor.Sections[index];
-                                <div class="invasion-section @SectionClass(index)">
-                                    <span>@SectionLabel(index)</span>
-                                    <strong>@SectionHpText(index, section)</strong>
-                                    <small>@ResourceText(section.Loot)</small>
+                                <div class="invasion-section @(section.Cleared ? "cleared" : section.Current ? "current" : "upcoming")">
+                                    <span>@SectionLabel(section.Index)</span>
+                                    <strong>@(section.Cleared ? "CLEAR" : $"{section.Hp}/{section.MaxHp} HP")</strong>
                                 </div>
                             }
                         </div>
 
-                        <div class="current-section-panel">
-                            <div class="section-panel-head"><span>@T("section_hp")</span><strong>@CurrentSectionHpText</strong></div>
-                            <div class="section-hp-meter"><span style="width:@CurrentSectionHpPercent%"></span></div>
-                        </div>
-
-                        <div class="party-grid">
-                            @foreach (var unit in _demo.Simulation.Units.OrderBy(x => x.FormationIndex))
-                            {
-                                <div class="party-unit @(unit.Alive ? unit.Deployed ? "deployed" : "reserve" : "defeated")">
-                                    <img src="@UnitAsset(unit.Definition.Id)" alt="@UnitName(unit.Definition.Id)" />
-                                    <div class="party-unit-body">
-                                        <strong>@UnitName(unit.Definition.Id)</strong>
-                                        <span>@UnitState(unit)</span>
-                                        <div class="unit-hp-meter"><span style="width:@UnitHpPercent(unit)%"></span></div>
-                                        <small>HP @unit.Hp/@unit.Definition.MaxHp @if (unit.Shield > 0) { <text> · Shield @unit.Shield</text> }</small>
-                                    </div>
+                        <div class="invasion-battlefield" aria-label="invasion battlefield">
+                            <section class="battle-lane reserve-lane">
+                                <div class="battle-lane-heading"><span>@T("reserve")</span><strong>@battle.ReserveUnits.Length</strong></div>
+                                <div class="battle-unit-row compact">
+                                    @foreach (var unit in battle.ReserveUnits.Take(8))
+                                    {
+                                        <div class="battle-unit reserve" title="@UnitName(unit.DefinitionId)">
+                                            <img src="@AssetUrl(unit.Asset)" alt="@UnitName(unit.DefinitionId)" />
+                                        </div>
+                                    }
                                 </div>
-                            }
+                            </section>
+
+                            <div class="battle-advance" aria-hidden="true">▶</div>
+
+                            <section class="battle-lane frontline-lane">
+                                <div class="battle-lane-heading"><span>@T("active")</span><strong>@battle.ActiveUnits.Length · @T("defeated") @battle.DefeatedCount</strong></div>
+                                <div class="battle-unit-row frontline">
+                                    @if (battle.ActiveUnits.Length == 0)
+                                    {
+                                        <p class="battle-empty">@T("events_empty")</p>
+                                    }
+                                    @foreach (var unit in battle.ActiveUnits.Take(8))
+                                    {
+                                        <div class="battle-unit active" title="@UnitName(unit.DefinitionId)">
+                                            <img src="@AssetUrl(unit.Asset)" alt="@UnitName(unit.DefinitionId)" />
+                                            <div class="unit-hp-meter"><span style="width:@UnitHpPercent(unit)%"></span></div>
+                                            @if (unit.Shield > 0) { <small>◇@unit.Shield</small> }
+                                        </div>
+                                    }
+                                </div>
+                            </section>
+
+                            <div class="battle-advance" aria-hidden="true">▶</div>
+
+                            <section class="fortification-lane">
+                                <div class="fortification-stage">
+                                    <img src="@WebProductAssets.Resolve(battle.FortificationAsset)" alt="Enemy fortification" />
+                                </div>
+                                <div class="fortification-hud">
+                                    <strong>@SectionLabel(battle.CurrentSectionIndex)</strong>
+                                    <small>@string.Join(" · ", battle.ThreatTags.Select(ThreatName))</small>
+                                    <div class="section-hp-meter"><span style="width:@CurrentSectionHpPercent%"></span></div>
+                                    <span>@battle.CurrentSectionHp / @battle.CurrentSectionMaxHp HP</span>
+                                </div>
+                            </section>
                         </div>
 
-                        @if (_demo.Simulation.Outcome != InvasionOutcome.Running)
-                        {
-                            <div class="invasion-result @OutcomeClass">
-                                <div class="section-label">@T("result")</div>
-                                <h2>@OutcomeText</h2>
-                                <p>@T("secured"): <strong>@ResourceText(_demo.Simulation.SecuredLoot)</strong></p>
-                                <button class="primary" @onclick="ReturnToBriefing">@T("again")</button>
-                            </div>
-                        }
+                        <div class="battle-latest-event">@LatestEventText(battle.LatestEvent)</div>
+
                     </div>
                 </section>
 
                 <aside class="control-card invasion-controls">
-                    @if (_demo.Simulation.Outcome == InvasionOutcome.Running)
+                    @if (battle.Outcome == InvasionOutcome.Running)
                     {
-                        <div class="control-group invasion-primary">
-                            <button class="primary" @onclick="DeployAll" disabled="@(_demo.Simulation.ReserveCount == 0)">@T("deploy_all") (@_demo.Simulation.ReserveCount)</button>
+                        <div class="control-group invasion-primary deploy-commands">
+                            @foreach (var command in battle.DeployCommands)
+                            {
+                                <button class="primary" @onclick="() => DeployOne(command.UnitDefinitionId)" disabled="@(!command.Enabled)">
+                                    @UnitName(command.UnitDefinitionId) +1 (@command.ReserveCount)
+                                </button>
+                            }
                             <button @onclick="ToggleRun">@(_running ? T("pause") : T("resume"))</button>
                         </div>
                         <div class="control-group invasion-summary">
                             <div class="analysis-grid">
-                                <span>@T("active")</span><strong>@_demo.Simulation.ActiveCount</strong>
-                                <span>@T("reserve")</span><strong>@_demo.Simulation.ReserveCount</strong>
-                                <span>@T("defeated")</span><strong>@_demo.Simulation.DefeatedCount</strong>
-                                <span>MP</span><strong>@_demo.Simulation.Mp / @_demo.Content.MaxMp</strong>
+                                <span>@T("active")</span><strong>@battle.ActiveUnits.Length</strong>
+                                <span>@T("reserve")</span><strong>@battle.ReserveUnits.Length</strong>
+                                <span>@T("defeated")</span><strong>@battle.DefeatedCount</strong>
+                                <span>MP</span><strong>@battle.Mp / @battle.MaxMp</strong>
                             </div>
                         </div>
                         <div class="control-group">
                             <div class="section-label">@T("support")</div>
-                            <button @onclick="CastMend" disabled="@(!CanCastMend)">@T("mend")</button>
-                            <button @onclick="CastWard" disabled="@(!CanCastWard)">@T("ward")</button>
-                            <button class="danger" @onclick="RequestRetreat" disabled="@(_demo.Simulation.RetreatRemainingTicks is not null)">@T("retreat")</button>
+                            <button @onclick="CastMend" disabled="@(!battle.Mend.Enabled)">@T("mend")</button>
+                            <button @onclick="CastWard" disabled="@(!battle.Ward.Enabled)">@T("ward")</button>
+                            <button class="danger" @onclick="RequestRetreat" disabled="@(!battle.Retreat.Enabled)">@RetreatText(battle)</button>
                             @if (!string.IsNullOrWhiteSpace(_notice)) { <p class="notice">@_notice</p> }
                         </div>
                     }
-
-                    <div class="control-group event-log">
-                        <div class="section-label">@T("recent")</div>
-                        @if (_demo.RecentEvents().Count == 0)
-                        {
-                            <p class="muted">@T("events_empty")</p>
-                        }
-                        else
-                        {
-                            @foreach (var e in _demo.RecentEvents())
-                            {
-                                <div class="event"><span>@e.Tick</span><strong>@EventText(e)</strong></div>
-                            }
-                        }
-                    </div>
                 </aside>
             </main>
         }
-        <footer>@T("footer")</footer>
     </div>
 }
 
@@ -223,6 +293,7 @@ else
     private int _speed = 1;
     private string _locale = WebDemoLocalization.Japanese;
     private string? _notice;
+    private InvasionPreparationStage _preBattleStage = InvasionPreparationStage.Locations;
 
     protected override async Task OnInitializedAsync()
     {
@@ -251,10 +322,22 @@ else
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
     }
 
+    private async Task NavigateBack()
+    {
+        _running = false;
+        if (_preBattleStage == InvasionPreparationStage.Formation) { _preBattleStage = InvasionPreparationStage.Scout; return; }
+        if (_preBattleStage == InvasionPreparationStage.Scout) { _preBattleStage = InvasionPreparationStage.Locations; return; }
+        await OnBack.InvokeAsync();
+    }
+    private string PreparationBackLabel => _preBattleStage switch
+    {
+        InvasionPreparationStage.Formation => T("scouting"),
+        InvasionPreparationStage.Scout => T("locations"),
+        _ => T("back"),
+    };
     private void SetLocale(string locale) { _locale = locale; _notice = null; }
-    private async Task Back() { _running = false; await OnBack.InvokeAsync(); }
-    private void SelectLocation(string id) { _demo!.SelectLocation(id); _notice = null; }
-    private void SelectFloor(string id) { _demo!.SelectFloor(id); _notice = null; }
+    private void SelectLocation(string id) { _demo!.SelectLocation(id); _preBattleStage = InvasionPreparationStage.Scout; _notice = null; }
+    private void SelectFloor(string id) { _demo!.SelectFloor(id); _preBattleStage = InvasionPreparationStage.Formation; _notice = null; }
     private void AdjustFormation(string unitId, int delta) { if (!_demo!.AdjustFormation(unitId, delta)) _notice = $"Capacity {_demo.DeploymentCapacity}"; else _notice = null; }
     private bool CanAdd(string unitId) => _demo is not null && _demo.UsedDeploymentCapacity + _demo.Content.UnitDeploymentCosts[unitId] <= _demo.DeploymentCapacity;
 
@@ -265,15 +348,13 @@ else
         _notice = null;
     }
     private void DeployAll() { _demo!.DeployAllRemaining(); _running = true; }
+    private void DeployOne(string unitId) { _demo!.Deploy(unitId); _running = true; _notice = null; }
     private void ToggleRun() => _running = !_running;
     private void CastMend() => CastSpell("invasion.spell.mend");
     private void CastWard() => CastSpell("invasion.spell.ward");
     private void CastSpell(string spellId) { _notice = _demo!.CastSupportSpell(spellId) ? null : "MP / Cooldown"; }
-    private bool CanCastMend => CanCast("invasion.spell.mend");
-    private bool CanCastWard => CanCast("invasion.spell.ward");
     private void RequestRetreat() { _demo!.RequestRetreat(); _notice = null; }
-    private void ReturnToBriefing() { _demo!.ReturnToBriefing(); _running = false; _notice = null; }
-    private bool CanCast(string spellId) => _demo?.Simulation is { Outcome: InvasionOutcome.Running } s && s.Mp >= _demo.Content.SupportSpells[spellId].MpCost && s.SpellCooldownRemaining(spellId) == 0 && s.ActiveCount > 0;
+    private void ReturnToBriefing() { _demo!.ReturnToBriefing(); _running = false; _preBattleStage = InvasionPreparationStage.Scout; _notice = null; }
 
     private int CapacityPercent => _demo is null ? 0 : Math.Clamp(_demo.UsedDeploymentCapacity * 100 / _demo.DeploymentCapacity, 0, 100);
     private string SectionStatus => _demo?.Simulation is { } s ? $"{Math.Min(s.SectionIndex + 1, s.Floor.Sections.Count)}/{s.Floor.Sections.Count}" : $"{_demo?.SelectedFloor.Sections.Count ?? 0}";
@@ -287,9 +368,8 @@ else
     {
         get
         {
-            if (_demo?.Simulation is not { } s) return 0;
-            var max = s.Floor.Sections[s.SectionIndex].DefenseHp;
-            return max <= 0 ? 0 : Math.Clamp(s.SectionDefenseHp * 100 / max, 0, 100);
+            var state = _demo?.VisualState;
+            return state is null || state.CurrentSectionMaxHp <= 0 ? 0 : Math.Clamp(state.CurrentSectionHp * 100 / state.CurrentSectionMaxHp, 0, 100);
         }
     }
     private string CurrentSectionHpText => _demo?.Simulation is { } s ? $"{s.SectionDefenseHp}/{s.Floor.Sections[s.SectionIndex].DefenseHp}" : "—";
@@ -305,14 +385,15 @@ else
         if (index < s.SectionIndex || s.Outcome == InvasionOutcome.Success) return "CLEAR";
         return index == s.SectionIndex ? $"{s.SectionDefenseHp}/{section.DefenseHp} HP" : $"{section.DefenseHp} HP";
     }
-    private static int UnitHpPercent(InvasionUnitRuntime unit) => unit.Definition.MaxHp <= 0 ? 0 : Math.Clamp(unit.Hp * 100 / unit.Definition.MaxHp, 0, 100);
+    private static int UnitHpPercent(InvasionUnitVisualState unit) => unit.MaxHp <= 0 ? 0 : Math.Clamp(unit.Hp * 100 / unit.MaxHp, 0, 100);
     private string UnitState(InvasionUnitRuntime unit) => !unit.Alive ? T("defeated") : unit.Deployed ? T("active") : T("reserve");
 
     private string T(string key) => WebInvasionLocalization.Text(_locale, key);
     private string LocationName(string id) => WebInvasionLocalization.LocationName(_locale, id);
     private string ThreatName(string tag) => WebInvasionLocalization.ThreatName(_locale, tag);
     private string ObjectiveName(InvasionObjectiveKind objective) => WebInvasionLocalization.ObjectiveName(_locale, objective);
-    private string FloorName(InvasionFloorDefinition floor) => _locale == WebDemoLocalization.Japanese ? $"地下{floor.Depth}階" : $"B{floor.Depth}F";
+    private string FloorName(InvasionFloorDefinition floor) => FloorName(floor.Depth);
+    private string FloorName(int depth) => _locale == WebDemoLocalization.Japanese ? $"地下{depth}階" : $"B{depth}F";
     private string SectionLabel(int index) => _locale == WebDemoLocalization.Japanese ? $"区画 {index + 1}" : $"Section {index + 1}";
     private string UnitName(string id) => WebDemoLocalization.BuildName(_locale, id);
     private string RoleName(string id) => _demo is null ? "" : _demo.Content.UnitRoleProfile(id).Archetype switch
@@ -321,12 +402,30 @@ else
         InvasionUnitArchetype.BacklineStriker => _locale == WebDemoLocalization.Japanese ? "後衛火力" : "Backline Striker",
         _ => _demo.Content.UnitRoleProfile(id).Archetype.ToString(),
     };
-    private static string UnitAsset(string id) => id switch
+    private static string UnitAsset(string id) => WebProductAssets.Unit(id);
+    private static string AssetUrl(ProductAssetRef? asset)
+        => asset is { } value ? WebProductAssets.Resolve(value) : WebProductAssets.Unit("monster.skeleton_warrior");
+    private string LatestEventText(ProductMessage? message)
     {
-        "monster.skeleton_warrior" => "assets/production/units/directional/MN-01-E.png",
-        "monster.skeleton_archer" => "assets/production/units/directional/MN-02-E.png",
-        _ => "assets/production/units/HU-01.png",
-    };
+        if (message is null) return T("events_empty");
+        var unit = string.IsNullOrWhiteSpace(message.SubjectDefinitionId) ? string.Empty : UnitName(message.SubjectDefinitionId);
+        return message.Key switch
+        {
+            "invasion.event.deployed" => _locale == WebDemoLocalization.Japanese ? $"{unit}を投入" : $"Deployed {unit}",
+            "invasion.event.attack" => _locale == WebDemoLocalization.Japanese ? $"{unit}が防衛線へ{message.Amount}ダメージ" : $"{unit} dealt {message.Amount} damage to the defense line",
+            "invasion.event.damaged" => _locale == WebDemoLocalization.Japanese ? $"{unit}が{message.Amount}ダメージ" : $"{unit} took {message.Amount} damage",
+            "invasion.event.defeated" => _locale == WebDemoLocalization.Japanese ? $"{unit}が戦闘不能" : $"{unit} was defeated",
+            "invasion.event.heal" => _locale == WebDemoLocalization.Japanese ? $"{unit}を{message.Amount}回復" : $"Healed {unit} for {message.Amount}",
+            "invasion.event.ward" => _locale == WebDemoLocalization.Japanese ? $"部隊に防護 +{message.Amount}" : $"Ward +{message.Amount} to the frontline",
+            "invasion.event.section_cleared" => T("section_cleared"),
+            "invasion.event.retreating" => T("retreat_requested"),
+            _ => message.Key,
+        };
+    }
+    private string RetreatText(InvasionBattleVisualState state)
+        => state.Retreat.CountdownSeconds is { } seconds
+            ? (_locale == WebDemoLocalization.Japanese ? $"撤退中 {seconds:0.0}s" : $"Retreating {seconds:0.0}s")
+            : T("retreat");
     private string ResourceText(ResourceBundle value)
         => _locale == WebDemoLocalization.Japanese
             ? $"石 {value.Stone} · 鉄 {value.Iron} · 魂 {value.Soul} · 遺物 {value.Relic}"

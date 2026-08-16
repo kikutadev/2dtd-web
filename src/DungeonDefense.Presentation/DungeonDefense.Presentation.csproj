@@ -4,5 +4,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../DungeonDefense.Core/DungeonDefense.Core.csproj" />
+    <ProjectReference Include="../DungeonDefense.Application/DungeonDefense.Application.csproj" />
   </ItemGroup>
 </Project>

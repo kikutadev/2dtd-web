@@ -1,6 +1,7 @@
 using DungeonDefense.Application;
 using DungeonDefense.Contracts;
 using DungeonDefense.Core;
+using DungeonDefense.Presentation;
 
 namespace DungeonDefense.Web;
 
@@ -35,8 +36,8 @@ internal sealed class DungeonBuildDemo
     public DefenseStartValidationResult StartValidation
         => DefenseStartValidator.Validate(Session.Dungeon, _content);
 
-    public DungeonBuildAnalysis Analysis
-        => DungeonBuildAnalyzer.Analyze(Board, _content);
+    public DungeonBuildVisualState ProductState
+        => DungeonBuildProductPresentation.Build(Board, _content, BuildOptions, StartValidation);
 
     /// <summary>Starts again from the production defense-slice board, preserving its valid entrance-to-core route.</summary>
     public void Reset()

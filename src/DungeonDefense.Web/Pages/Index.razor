@@ -6,7 +6,7 @@
 @using System.Diagnostics
 @inject HttpClient Http
 
-<PageTitle>Dungeon Defense — Playable Demo</PageTitle>
+<PageTitle>Dungeon Defense</PageTitle>
 
 @if (_build is null)
 {
@@ -23,25 +23,19 @@ else
     <div class="app-shell">
         <header class="topbar">
             <div>
-                <div class="eyebrow">2dTD · WEB PLAYABLE DEMO</div>
                 <h1>@T("title")</h1>
             </div>
-            <div class="top-actions"><button class="mode-link" @onclick="OpenInvasionDemo">@T("invasion_demo")</button><div class="locale-picker"><button class="@(_locale == WebDemoLocalization.Japanese ? "active" : null)" @onclick="() => SetLocale(WebDemoLocalization.Japanese)">日本語</button><button class="@(_locale == WebDemoLocalization.English ? "active" : null)" @onclick="() => SetLocale(WebDemoLocalization.English)">EN</button></div><div class="runtime-badge"><span class="dot"></span> Production C# / WASM</div></div>
+            <div class="top-actions"><button class="mode-link" @onclick="OpenInvasionDemo">@T("invasion_demo")</button><div class="locale-picker"><button class="@(_locale == WebDemoLocalization.Japanese ? "active" : null)" @onclick="() => SetLocale(WebDemoLocalization.Japanese)">日本語</button><button class="@(_locale == WebDemoLocalization.English ? "active" : null)" @onclick="() => SetLocale(WebDemoLocalization.English)">EN</button></div></div>
         </header>
-
-        @if (IsBuilding)
-        {
-            <div class="demo-guide"><span>PLAYABLE DEMO</span><strong>@T("guide")</strong></div>
-        }
 
         @if (IsBuilding)
         {
             <section class="status-row">
                 <div><span>@T("phase")</span><strong>@T("build_phase")</strong></div>
-                <div><span>@T("capacity")</span><strong>@Board.UsedCapacity / @Board.CapacityMax</strong></div>
-                <div><span>@T("route")</span><strong>@_build.Analysis.RouteLength cells</strong></div>
-                <div><span>@T("defense")</span><strong>@(_build.StartValidation.Success ? T("ready") : T("needs_fix"))</strong></div>
-                <div><span>@T("placements")</span><strong>@PlacementCount</strong></div>
+                <div><span>@T("capacity")</span><strong>@BuildState.UsedCapacity / @BuildState.CapacityMax</strong></div>
+                <div><span>@T("route")</span><strong>@BuildState.RouteLength cells</strong></div>
+                <div><span>@T("defense")</span><strong>@(BuildState.CanStartDefense ? T("ready") : T("needs_fix"))</strong></div>
+                <div><span>@T("placements")</span><strong>@BuildState.PlacementCount</strong></div>
             </section>
         }
         else
@@ -51,113 +45,150 @@ else
                 <div><span>@T("wave")</span><strong>@WaveText</strong></div>
                 <div><span>@T("core")</span><strong>@CoreText</strong></div>
                 <div><span>MP</span><strong>@MpText</strong></div>
-                <div><span>@T("tick")</span><strong>@(_demo?.Simulation?.Tick ?? 0)</strong></div>
+                <div><span>@T("impact")</span><strong>@DesignImpactText</strong></div>
             </section>
         }
 
         <main class="game-layout">
             <section class="world-card">
-                <div class="world-heading">
-                    <div>
-                        <strong>@T("floor_1")</strong>
-                        <span>@(IsBuilding ? T("build_heading") : T("battle_heading"))</span>
+                @if (DefenseResult is { } result)
+                {
+                    <div class="world-heading result-heading">
+                        <div><strong>@T("result")</strong><span>@T("result_heading")</span></div>
                     </div>
-                    @if (!IsBuilding)
-                    {
-                        <div class="speed-picker" aria-label="再生速度">
-                            @foreach (var speed in new[] { 1, 2, 3 })
+                    <section class="defense-result-screen @(result.Outcome == DefenseOutcome.Success ? "success" : "failure")">
+                        <div class="result-world-state">
+                            <img class="result-core-large" src="@WebProductAssets.Resolve(result.CoreAsset)" alt="Core" />
+                            <div class="result-outcome">
+                                <span>@T("result")</span>
+                                <h2>@OutcomeText</h2>
+                                <p>@T(result.HypothesisMessageKey)</p>
+                            </div>
+                        </div>
+                        <div class="result-impact-grid result-impact-large">
+                            <span>@T("result_core")</span><strong>@result.CoreHp / @result.CoreMaxHp</strong>
+                            <span>@T("result_trap")</span><strong>@result.TrapDamage</strong>
+                            <span>@T("result_guard")</span><strong>@result.GuardDamage</strong>
+                            <span>@T("result_facility")</span><strong>@result.FacilityDamage</strong>
+                            <span>@T("result_core_hits")</span><strong>@result.CoreHitCount</strong>
+                            <span>@T("result_spells")</span><strong>@result.SpellCasts</strong>
+                        </div>
+                        <div class="result-floor-strip">
+                            @foreach (var floor in result.Floors)
                             {
-                                <button class="@(speed == _speed ? "active" : null)" @onclick="() => _speed = speed">@speed×</button>
+                                <div class="result-floor @(floor.Breached ? "breached" : "held")">
+                                    <span>B@floor.Depth</span>
+                                    <strong>@(floor.Breached ? T("result_breached") : T("result_held"))</strong>
+                                    <small>@T("result_pressure") @floor.TrafficCount · @T("result_damage") @(floor.TrapDamage + floor.GuardDamage + floor.FacilityDamage)</small>
+                                </div>
                             }
                         </div>
-                    }
-                </div>
-
-                <div class="board-wrap">
-                    <div class="board @(IsBuilding ? "build-board" : null)" style="grid-template-columns: repeat(@Board.Width, 1fr);">
-                        @for (var y = 0; y < Board.Height; y++)
+                    </section>
+                }
+                else
+                {
+                    <div class="world-heading">
+                        <div>
+                            <strong>@T("floor_1")</strong>
+                            <span>@(IsBuilding ? T("build_heading") : T("battle_heading"))</span>
+                        </div>
+                        @if (!IsBuilding)
                         {
-                            @for (var x = 0; x < Board.Width; x++)
-                            {
-                                var point = new GridPoint(x, y);
-                                <button type="button"
-                                        class="cell @BuildCellClass(point)"
-                                        disabled="@(!IsBuilding)"
-                                        aria-label="@CellAriaLabel(point)"
-                                        @onclick="() => HandleCellClick(point)"
-                                        style="background-image:url('@TileAsset(point)')">
-                                    @if (point == Board.Core)
-                                    {
-                                        <img class="object core" src="@CoreAsset" alt="Core" />
-                                    }
-                                    @foreach (var trap in Board.Traps.Where(t => t.Position == point))
-                                    {
-                                        <img class="object fixture" src="@TrapAsset(trap.DefinitionId)" alt="@BuildOptionText(trap.DefinitionId)" />
-                                    }
-                                    @foreach (var facility in Board.Facilities.Where(f => f.Position == point))
-                                    {
-                                        <img class="object fixture" src="@FacilityAsset(facility.DefinitionId)" alt="@BuildOptionText(facility.DefinitionId)" />
-                                    }
-                                    @if (IsBuilding)
-                                    {
-                                        @foreach (var guard in Board.Guards.Where(g => g.Position == point))
-                                        {
-                                            <img class="unit" src="@UnitAsset(guard.DefinitionId, "E")" alt="@BuildOptionText(guard.DefinitionId)" />
-                                        }
-                                    }
-                                </button>
-                            }
-                        }
-                        @if (_demo?.Simulation is not null)
-                        {
-                            <div class="unit-layer" aria-hidden="true">
-                                @foreach (var unit in _demo.VisualState.Units)
+                            <div class="speed-picker" aria-label="再生速度">
+                                @foreach (var speed in new[] { 1, 2, 3 })
                                 {
-                                    <div class="unit-wrap @TeamClass(unit.Team)" style="@UnitStyle(unit)">
-                                        <img class="unit" src="@UnitAsset(unit.DefinitionId, CombatMotionPresentation.FacingSuffix(unit.Facing))" alt="@unit.DefinitionId" />
-                                        @if (unit.ShowHp)
-                                        {
-                                            <div class="hp"><span style="width:@HpPercent(unit)%"></span></div>
-                                        }
-                                    </div>
-                                }
-                                <svg class="beam-layer" viewBox="0 0 @Board.Width @Board.Height" preserveAspectRatio="none">
-                                    @foreach (var beam in _demo.VisualState.Projectiles.Where(x => x.Trajectory == ProjectileTrajectoryKind.Beam))
-                                    {
-                                        <line x1="@(beam.From.X + 0.5f)" y1="@(beam.From.Y + 0.5f)"
-                                              x2="@(beam.To.X + 0.5f)" y2="@(beam.To.Y + 0.5f)"
-                                              vector-effect="non-scaling-stroke" />
-                                    }
-                                </svg>
-                                @foreach (var projectile in _demo.VisualState.Projectiles.Where(x => x.Trajectory != ProjectileTrajectoryKind.Beam))
-                                {
-                                    @if (projectile.ProjectileHeight > 0.01f)
-                                    {
-                                        <span class="projectile-shadow" style="@ProjectileGroundStyle(projectile)"></span>
-                                    }
-                                    <span class="projectile" style="@ProjectileStyle(projectile)"></span>
+                                    <button class="@(speed == _speed ? "active" : null)" @onclick="() => _speed = speed">@speed×</button>
                                 }
                             </div>
                         }
                     </div>
-                </div>
 
-                @if (IsBuilding)
-                {
-                    <div class="build-hint">
-                        @if (_removeMode)
-                        {
-                            <span>@T("remove_hint")</span>
-                        }
-                        else
-                        {
-                            <span>@((MarkupString)F("place_hint", $"<strong>{System.Net.WebUtility.HtmlEncode(SelectedBuildLabel)}</strong>"))</span>
-                        }
+                    <div class="board-wrap">
+                        <div class="board @(IsBuilding ? "build-board" : null)" style="grid-template-columns: repeat(@Board.Width, 1fr);">
+                            @for (var y = 0; y < Board.Height; y++)
+                            {
+                                @for (var x = 0; x < Board.Width; x++)
+                                {
+                                    var point = new GridPoint(x, y);
+                                    <button type="button"
+                                            class="cell @BuildCellClass(point)"
+                                            disabled="@(!IsBuilding)"
+                                            aria-label="@CellAriaLabel(point)"
+                                            @onclick="() => HandleCellClick(point)"
+                                            style="background-image:url('@TileAsset(point, Board)')">
+                                        @if (point == Board.Core)
+                                        {
+                                            <img class="object core" src="@CoreAsset" alt="Core" />
+                                        }
+                                        @foreach (var trap in Board.Traps.Where(t => t.Position == point))
+                                        {
+                                            <img class="object fixture" src="@TrapAsset(trap.DefinitionId)" alt="@BuildOptionText(trap.DefinitionId)" />
+                                        }
+                                        @foreach (var facility in Board.Facilities.Where(f => f.Position == point))
+                                        {
+                                            <img class="object fixture" src="@FacilityAsset(facility.DefinitionId)" alt="@BuildOptionText(facility.DefinitionId)" />
+                                        }
+                                        @if (IsBuilding)
+                                        {
+                                            @foreach (var guard in Board.Guards.Where(g => g.Position == point))
+                                            {
+                                                <img class="unit" src="@UnitAsset(guard.DefinitionId, "E")" alt="@BuildOptionText(guard.DefinitionId)" />
+                                            }
+                                        }
+                                    </button>
+                                }
+                            }
+                            @if (_demo?.Simulation is not null)
+                            {
+                                <div class="unit-layer" aria-hidden="true">
+                                    @foreach (var unit in _demo.VisualState.Units)
+                                    {
+                                        <div class="unit-wrap @TeamClass(unit.Team)" style="@UnitStyle(unit)">
+                                            <img class="unit" src="@UnitAsset(unit.DefinitionId, CombatMotionPresentation.FacingSuffix(unit.Facing))" alt="@unit.DefinitionId" />
+                                            @if (unit.ShowHp)
+                                            {
+                                                <div class="hp"><span style="width:@HpPercent(unit)%"></span></div>
+                                            }
+                                        </div>
+                                    }
+                                    <svg class="beam-layer" viewBox="0 0 @Board.Width @Board.Height" preserveAspectRatio="none">
+                                        @foreach (var beam in _demo.VisualState.Projectiles.Where(x => x.Trajectory == ProjectileTrajectoryKind.Beam))
+                                        {
+                                            <line x1="@(beam.From.X + 0.5f)" y1="@(beam.From.Y + 0.5f)"
+                                                  x2="@(beam.To.X + 0.5f)" y2="@(beam.To.Y + 0.5f)"
+                                                  vector-effect="non-scaling-stroke" />
+                                        }
+                                    </svg>
+                                    @foreach (var projectile in _demo.VisualState.Projectiles.Where(x => x.Trajectory != ProjectileTrajectoryKind.Beam))
+                                    {
+                                        @if (projectile.ProjectileHeight > 0.01f)
+                                        {
+                                            <span class="projectile-shadow" style="@ProjectileGroundStyle(projectile)"></span>
+                                        }
+                                        <span class="projectile" style="@ProjectileStyle(projectile)"></span>
+                                    }
+                                </div>
+                            }
+                        </div>
                     </div>
-                }
-                else
-                {
-                    <div class="timeline"><span style="width:@ProgressPercent%"></span></div>
+
+                    @if (IsBuilding)
+                    {
+                        <div class="build-hint">
+                            @if (_removeMode)
+                            {
+                                <span>@T("remove_hint")</span>
+                            }
+                            else
+                            {
+                                <span>@((MarkupString)F("place_hint", $"<strong>{System.Net.WebUtility.HtmlEncode(SelectedBuildLabel)}</strong>"))</span>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="timeline"><span style="width:@ProgressPercent%"></span></div>
+                    }
                 }
             </section>
 
@@ -191,9 +222,9 @@ else
                         <div class="section-label">@T("summary")</div>
                         <div class="analysis-grid">
                             <span>@T("first_contact")</span><strong>@FirstContactText</strong>
-                            <span>@T("trap_contacts")</span><strong>@_build.Analysis.TrapContactCount</strong>
-                            <span>@T("guard_coverage")</span><strong>@_build.Analysis.GuardCoveredRouteCells / @_build.Analysis.RouteLength</strong>
-                            <span>@T("facility_coverage")</span><strong>@_build.Analysis.FacilityCoveredRouteCells / @_build.Analysis.RouteLength</strong>
+                            <span>@T("trap_contacts")</span><strong>@BuildState.TrapContactCount</strong>
+                            <span>@T("guard_coverage")</span><strong>@BuildState.GuardCoveredRouteCells / @BuildState.RouteLength</strong>
+                            <span>@T("facility_coverage")</span><strong>@BuildState.FacilityCoveredRouteCells / @BuildState.RouteLength</strong>
                         </div>
                     </div>
 
@@ -209,44 +240,36 @@ else
                         }
                     </div>
                 }
+                else if (DefenseResult is not null)
+                {
+                    <div class="control-group result-actions">
+                        <div class="section-label">@T("result_next")</div>
+                        <button class="primary" @onclick="ReturnToBuild">@T("return_build")</button>
+                        <button @onclick="ToggleRun">@T("run_again")</button>
+                    </div>
+                    <p class="muted result-action-hint">@T("result_action_hint")</p>
+                }
                 else
                 {
                     <div class="control-group primary-controls">
                         <button class="primary" @onclick="ToggleRun">@RunButtonText</button>
-                        @if (_demo?.Simulation?.Outcome is DefenseOutcome.Success or DefenseOutcome.Failure)
-                        {
-                            <button @onclick="ReturnToBuild">@T("return_build")</button>
-                        }
                     </div>
 
                     <div class="control-group">
                         <div class="section-label">@T("magic")</div>
-                        <button @onclick="CastFreeze">@T("freeze")</button>
-                        <button @onclick="CastPush">@T("push")</button>
+                        <button @onclick="CastFreeze" disabled="@(!SpellEnabled("spell.freeze"))">@SpellButtonText("spell.freeze", "freeze")</button>
+                        <button @onclick="CastPush" disabled="@(!SpellEnabled("spell.push"))">@SpellButtonText("spell.push", "push")</button>
                         @if (!string.IsNullOrWhiteSpace(_notice)) { <p class="notice">@_notice</p> }
                     </div>
 
                     <div class="control-group event-log">
                         <div class="section-label">@T("recent_events")</div>
-                        @if (_demo?.RecentEvents().Count == 0)
-                        {
-                            <p class="muted">@T("events_empty")</p>
-                        }
-                        else if (_demo is not null)
-                        {
-                            @foreach (var e in _demo.RecentEvents())
-                            {
-                                <div class="event"><span>@e.Tick</span><strong>@EventText(e)</strong></div>
-                            }
-                        }
+                        <p class="muted">@LatestDefenseEventText</p>
                     </div>
                 }
             </aside>
         </main>
 
-        <footer>
-            <span>@T("footer")</span>
-        </footer>
     </div>
     }
 }
@@ -267,11 +290,13 @@ else
     private string _locale = WebDemoLocalization.Japanese;
 
     private bool IsBuilding => _demo is null;
+    private DefenseHudVisualState? DefenseHud => _demo?.HudState;
+    private DefenseResultVisualState? DefenseResult => _demo?.ResultState;
     private DungeonState Board => _demo?.Board ?? _build!.Board;
-    private int PlacementCount => Board.Traps.Count + Board.Guards.Count + Board.Facilities.Count + Board.Rooms.Count;
+    private DungeonBuildVisualState BuildState => _build!.ProductState;
     private BuildOption? SelectedBuildOption => _build?.BuildOptions.SingleOrDefault(x => x.Id == _selectedDefinitionId);
     private string SelectedBuildLabel => SelectedBuildOption is null ? "配置物" : BuildOptionText(SelectedBuildOption.Id);
-    private string FirstContactText => _build!.Analysis.FirstDefenseContactPathIndex < 0 ? T("none") : $"route {_build.Analysis.FirstDefenseContactPathIndex}";
+    private string FirstContactText => BuildState.FirstDefenseContactPathIndex < 0 ? T("none") : $"route {BuildState.FirstDefenseContactPathIndex}";
 
     protected override async Task OnInitializedAsync()
     {
@@ -453,22 +478,49 @@ else
         _ => T("run_again"),
     };
     private string OutcomeText => _demo?.Simulation?.Outcome switch { DefenseOutcome.Success => T("outcome_success"), DefenseOutcome.Failure => T("outcome_failure"), _ => _running ? T("outcome_running") : T("outcome_paused") };
-    private string WaveText => _demo?.Simulation is { } s ? $"{Math.Min(s.WaveIndex + 1, s.WaveCount)}/{s.WaveCount}" : "0/3";
-    private string CoreText => _demo?.Simulation is { } s ? $"{s.CoreHp}/{s.CoreMaxHp}" : "60/60";
-    private string MpText => _demo?.Simulation is { } s ? $"{s.Mp}/{s.MaxMp}" : "0/100";
-    private int ProgressPercent => _demo?.Simulation is { } s ? Math.Min(100, s.Tick * 100 / 430) : 0;
-    private string CoreAsset => _demo?.Simulation?.Outcome == DefenseOutcome.Failure ? "assets/production/core/CO-02.png" : "assets/production/core/CO-01.png";
-
-    private string TileAsset(GridPoint point) => Board.GetTile(point) switch
+    private string WaveText => DefenseHud is { } hud ? $"{hud.WaveNumber}/{hud.WaveCount}" : "0/0";
+    private string CoreText => DefenseHud is { } hud ? $"{hud.CoreHp}/{hud.CoreMaxHp}" : "—";
+    private string MpText => DefenseHud is { } hud ? $"{hud.Mp}/{hud.MaxMp}" : "—";
+    private string DesignImpactText => DefenseHud is { } hud
+        ? $"{hud.DesignImpact.TrapDamage}/{hud.DesignImpact.GuardDamage}/{hud.DesignImpact.FacilityDamage}"
+        : "—";
+    private bool SpellEnabled(string spellId)
+        => DefenseHud?.Spells.FirstOrDefault(x => string.Equals(x.SpellId, spellId, StringComparison.Ordinal))?.Enabled == true;
+    private string SpellButtonText(string spellId, string fallbackKey)
     {
-        TileKind.Bedrock => "assets/production/tiles/TS-02.png",
-        TileKind.Entrance => "assets/production/tiles/TS-04.png",
-        TileKind.Core => "assets/production/tiles/TS-05.png",
-        TileKind.Room => "assets/production/tiles/TS-03.png",
-        _ => "assets/production/tiles/TS-01.png",
+        var spell = DefenseHud?.Spells.FirstOrDefault(x => string.Equals(x.SpellId, spellId, StringComparison.Ordinal));
+        if (spell is null) return T(fallbackKey);
+        var name = spellId == "spell.freeze" ? T("freeze_name") : spellId == "spell.push" ? T("push_name") : spellId;
+        return spell.CooldownTicks > 0
+            ? $"{name} {spell.MpCost} MP · {spell.CooldownTicks / (double)DefenseSimulation.TicksPerSecond:0.0}s"
+            : $"{name} {spell.MpCost} MP";
+    }
+    private string LatestDefenseEventText => DefenseHud?.LatestEvent is { } message ? DefenseMessageText(message) : T("events_empty");
+    private string DefenseMessageText(ProductMessage message) => message.Key switch
+    {
+        "combat.status.wave_start" => F("status_wave_start", message.Amount),
+        "combat.status.wave_end" => F("status_wave_end", message.Amount),
+        "combat.status.breached" => F("status_breached", message.Amount),
+        "combat.status.floor_entered" => F("status_floor_entered", message.Amount),
+        "combat.status.trap" => F("status_trap", message.Amount),
+        "combat.status.core_hit" => F("status_core_hit", message.Amount),
+        "combat.status.spell" => string.IsNullOrWhiteSpace(message.SubjectDefinitionId) ? T("event_spell") : message.SubjectDefinitionId,
+        "combat.status.defeated" => string.IsNullOrWhiteSpace(message.SubjectDefinitionId) ? T("event_death") : F("status_defeated", BuildOptionText(message.SubjectDefinitionId)),
+        _ => message.Key,
     };
-    private static string TrapAsset(string id) => id == "trap.poison" ? "assets/production/traps/TR-03.png" : "assets/production/traps/TR-01.png";
-    private static string FacilityAsset(string id) => id == "facility.magic_eye" ? "assets/production/facilities/DF-02.png" : "assets/production/facilities/DF-01.png";
+    private int ProgressPercent => _demo?.Simulation is { } s ? Math.Min(100, s.Tick * 100 / 430) : 0;
+    private string CoreAsset
+        => WebProductAssets.Resolve(_demo?.ResultState?.CoreAsset ?? ProductAssetIdentity.Core(damaged: false));
+
+    private static string TileAsset(GridPoint point, DungeonState board)
+        => WebProductAssets.Resolve(ProductAssetIdentity.Tile(board.GetTile(point)));
+
+    private static string TrapAsset(string id)
+        => ProductAssetIdentity.Trap(id) is { } asset ? WebProductAssets.Resolve(asset) : string.Empty;
+
+    private static string FacilityAsset(string id)
+        => ProductAssetIdentity.Facility(id) is { } asset ? WebProductAssets.Resolve(asset) : string.Empty;
+
     private static string TeamClass(Team team) => team == Team.Invader ? "invader" : "dungeon";
     private static int HpPercent(CombatUnitVisualState unit) => unit.MaxHp <= 0 ? 0 : Math.Clamp(unit.Hp * 100 / unit.MaxHp, 0, 100);
 
@@ -500,17 +552,7 @@ else
     }
 
     private static string UnitAsset(string definitionId, string facing)
-    {
-        var id = definitionId switch
-        {
-            "monster.skeleton_warrior" => "MN-01", "monster.skeleton_archer" => "MN-02",
-            "human.warrior" => "HU-01", "human.archer" => "HU-02", "human.priest" => "HU-03",
-            "human.knight" => "HU-04", "human.mage" => "HU-05", "human.scout" => "HU-06",
-            "human.crossbowman" => "HU-07", "human.berserker" => "HU-08", "human.high_priest" => "HU-09",
-            "human.hero" => "BS-01", _ => "HU-01",
-        };
-        return $"assets/production/units/directional/{id}-{facing}.png";
-    }
+        => WebProductAssets.Unit(definitionId, facing);
 
     private string BuildOptionText(string id) => WebDemoLocalization.BuildName(_locale, id);
 
@@ -523,20 +565,6 @@ else
         _ => kind.ToString(),
     };
 
-    private string EventText(DefenseEvent e) => e.Type switch
-    {
-        DefenseEventType.WaveStart => T("event_wave"),
-        DefenseEventType.Spawn => T("event_spawn"),
-        DefenseEventType.TrapTriggered => T("event_trap"),
-        DefenseEventType.Attack => T("event_attack"),
-        DefenseEventType.Heal => T("event_heal"),
-        DefenseEventType.Death => T("event_death"),
-        DefenseEventType.CoreDamaged => F("event_core", e.Amount),
-        DefenseEventType.DefenseSuccess => T("event_success"),
-        DefenseEventType.DefenseFailure => T("event_failure"),
-        DefenseEventType.SpellCast => T("event_spell"),
-        _ => e.Type.ToString(),
-    };
 
     private string T(string key) => WebDemoLocalization.Text(_locale, key);
     private string F(string key, params object[] args) => WebDemoLocalization.Format(_locale, key, args);

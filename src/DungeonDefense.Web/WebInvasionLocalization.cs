@@ -26,7 +26,7 @@ internal static class WebInvasionLocalization
 
     private static readonly Dictionary<string, (string En, string Ja)> Texts = new(StringComparer.Ordinal)
     {
-        ["title"] = ("Invasion", "侵攻"), ["back"] = ("Dungeon Defense", "ダンジョン防衛"),
+        ["title"] = ("Invasion", "侵攻"), ["back"] = ("Defense", "防衛へ"),
         ["loading"] = ("Loading invasion content…", "侵攻データを読み込み中…"),
         ["briefing"] = ("Briefing / Formation", "偵察 / 編成"), ["battle"] = ("Invasion Battle", "侵攻戦"),
         ["briefing_desc"] = ("Major routes, threats and mission goals are known before deployment.", "主要経路・脅威・攻略目標は出撃前に確認できます。"),
@@ -48,6 +48,27 @@ internal static class WebInvasionLocalization
         ["unit_attack"] = ("Unit attack", "攻撃"), ["unit_damaged"] = ("Unit damaged", "被ダメージ"), ["unit_defeated"] = ("Unit defeated", "戦闘不能"),
         ["spell_cast"] = ("Support spell", "支援魔法"), ["loot_secured"] = ("Loot secured", "戦利品確保"),
         ["objective_complete"] = ("Objective completed", "目標達成"), ["retreat_requested"] = ("Retreat requested", "撤退開始"),
+        ["locations"] = ("Targets", "侵攻先"),
+        ["locations_desc"] = ("Choose a target before scouting its floors.", "まず侵攻先を選び、攻略する階層を偵察します。"),
+        ["available_floors"] = ("Available", "出撃可能"),
+        ["unlocked"] = ("Unlocked", "解放"),
+        ["inspect"] = ("Inspect", "確認"),
+        ["scouting"] = ("Scouting", "偵察"),
+        ["scout_desc"] = ("Compare objective, threats and rewards before forming the party.", "攻略目標・脅威・報酬を比較してから部隊を編成します。"),
+        ["first_clear"] = ("First clear", "初回攻略"),
+        ["repeat"] = ("Repeat", "再攻略"),
+        ["form_party"] = ("Form party", "部隊編成"),
+        ["locations_side_hint"] = ("Each location has its own floors and threat profile. Inspect one target at a time.", "侵攻先ごとに階層と脅威構成が異なります。まず一つの侵攻先を選んで確認します。"),
+        ["scout_side_hint"] = ("Choose the floor before formation so the roster answers the threats you actually saw.", "先に階層の脅威と報酬を確認し、その情報をもとに部隊を組みます。"),
+        ["force"] = ("Survivors", "生存戦力"),
+        ["progress"] = ("Reached", "到達区画"),
+        ["result_next"] = ("Next", "次の行動"),
+        ["result_hint"] = ("Return to scouting and change the floor or formation before the next assault.", "偵察へ戻り、次の侵攻前に階層や編成を見直せます。"),
+        ["section_reached"] = ("Reached", "到達"),
+        ["section_unreached"] = ("Unreached", "未到達"),
+        ["invasion.result.lesson.success"] = ("The assault broke through. Compare survivors and secured loot before choosing the next target.", "防衛線を突破しました。生存戦力と確保した戦利品を確認して次の侵攻先を選びます。"),
+        ["invasion.result.lesson.retreated"] = ("The force disengaged with secured loot. Re-form the party around the section that stopped the advance.", "確保済み戦利品を持って離脱しました。進軍が止まった区画に合わせて編成を見直せます。"),
+        ["invasion.result.lesson.wiped"] = ("The force was wiped before the objective. Review the reached section and party composition before retrying.", "目標達成前に部隊が壊滅しました。到達区画と編成を見直して再挑戦します。"),
         ["footer"] = ("This section-based battle runs the production InvasionSimulation directly; it does not reuse or imitate DefenseSimulation.", "この区画制戦闘はproduction InvasionSimulationを直接実行し、DefenseSimulationへの擬似変換は行っていません。"),
     };
 

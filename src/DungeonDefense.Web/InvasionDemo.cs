@@ -1,4 +1,6 @@
+using DungeonDefense.Application;
 using DungeonDefense.Core;
+using DungeonDefense.Presentation;
 
 namespace DungeonDefense.Web;
 
@@ -24,7 +26,14 @@ internal sealed class InvasionDemo
     }
 
     public InvasionContent Content => _content;
+    public IReadOnlyList<InvasionScoutReport> ScoutReports => BuildDemoScoutReports();
+    public InvasionLocationListVisualState LocationsState => InvasionPreparationPresentation.BuildLocations(_content, ScoutReports);
+    public InvasionScoutVisualState ScoutState => InvasionPreparationPresentation.BuildScout(SelectedLocationId, ScoutReports);
+    public InvasionScoutReport SelectedScoutReport => ScoutReports.Single(x => string.Equals(x.LocationId, SelectedLocationId, StringComparison.Ordinal) && string.Equals(x.FloorId, SelectedFloorId, StringComparison.Ordinal));
+    public InvasionFormationVisualState FormationState => InvasionPreparationPresentation.BuildFormation(_content, SelectedScoutReport, _formation);
     public InvasionSimulation? Simulation { get; private set; }
+    public InvasionBattleVisualState? VisualState => Simulation is { } simulation ? InvasionBattlePresentation.Build(simulation) : null;
+    public InvasionResultVisualState? ResultState => Simulation is { Outcome: not InvasionOutcome.Running } simulation ? InvasionResultPresentation.Build(SelectedLocationId, simulation) : null;
     public string SelectedLocationId { get; private set; }
     public string SelectedFloorId { get; private set; }
     public InvasionLocationDefinition SelectedLocation => _content.Location(SelectedLocationId);
@@ -33,7 +42,7 @@ internal sealed class InvasionDemo
     public IReadOnlyList<string> FormationUnitIds => _content.UnitDeploymentCosts.Keys.OrderBy(x => x, StringComparer.Ordinal).ToArray();
     public int UsedDeploymentCapacity => _formation.Sum(x => checked(x.Value * _content.UnitDeploymentCosts[x.Key]));
     public int DeploymentCapacity => _content.DeploymentCapacity;
-    public bool CanStart => Simulation is null && UsedDeploymentCapacity > 0 && UsedDeploymentCapacity <= DeploymentCapacity;
+    public bool CanStart => Simulation is null && FormationState.CanStart;
     public ResourceBundle VisibleSectionLoot => SelectedFloor.Sections.Aggregate(ResourceBundle.Zero, (sum, x) => sum.Add(x.Loot));
 
     public void SelectLocation(string locationId)
@@ -78,6 +87,7 @@ internal sealed class InvasionDemo
         _simulationAccumulatorSeconds = 0;
     }
 
+    public void Deploy(string unitId, int count = 1) => RequireSimulation().Deploy(unitId, count);
     public void DeployAllRemaining() => RequireSimulation().DeployAllRemaining();
     public bool CastSupportSpell(string spellId) => RequireSimulation().CastSupportSpell(spellId);
     public void RequestRetreat() => RequireSimulation().RequestRetreat();
@@ -108,6 +118,28 @@ internal sealed class InvasionDemo
 
     public IReadOnlyList<InvasionEvent> RecentEvents(int count = 6)
         => Simulation?.Events.TakeLast(count).Reverse().ToArray() ?? [];
+
+    private InvasionScoutReport[] BuildDemoScoutReports()
+    {
+        // The public vertical slice intentionally exposes all bundled demo floors. Availability is a host/demo policy only;
+        // objective, threat, loot and formation semantics still come from production content and shared Presentation.
+        return _content.Locations
+            .SelectMany(location => location.Floors.Select(floor => new InvasionScoutReport(
+                location.Id,
+                location.Category,
+                floor.Id,
+                floor.Depth,
+                floor.Objective,
+                floor.Sections.Count,
+                floor.ThreatTags.OrderBy(x => x, StringComparer.Ordinal).ToArray(),
+                floor.Sections.Aggregate(ResourceBundle.Zero, (sum, section) => sum.Add(section.Loot)),
+                floor.FirstClearReward,
+                IsFirstClear: true,
+                IsUnlocked: true,
+                IsAvailable: true,
+                RegenerationRemaining: TimeSpan.Zero)))
+            .ToArray();
+    }
 
     private void ResetCanonicalFormation()
     {
