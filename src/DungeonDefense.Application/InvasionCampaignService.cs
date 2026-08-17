@@ -2,6 +2,36 @@ using DungeonDefense.Core;
 
 namespace DungeonDefense.Application;
 
+public enum InvasionScoutActorKind
+{
+    Guard,
+    Trap,
+    Facility,
+}
+
+public sealed record InvasionScoutTileReport(GridPoint Position, TileKind Kind);
+public sealed record InvasionScoutRoomConnectionReport(GridPoint LocalCell, CardinalDirection Direction);
+public sealed record InvasionScoutRoomReport(
+    string InstanceId,
+    string DefinitionId,
+    GridPoint Origin,
+    int Width,
+    int Height,
+    IReadOnlyList<InvasionScoutRoomConnectionReport> Connections);
+public sealed record InvasionScoutSectionReport(string SectionId, IReadOnlyList<GridPoint> Cells, GridPoint Checkpoint);
+public sealed record InvasionScoutObjectiveReport(InvasionObjectiveKind Kind, GridPoint Position);
+public sealed record InvasionScoutActorReport(string InstanceId, string DefinitionId, InvasionScoutActorKind Kind, GridPoint Position);
+public sealed record InvasionScoutMapReport(
+    string MapDigest,
+    int Width,
+    int Height,
+    IReadOnlyList<InvasionScoutTileReport> Tiles,
+    IReadOnlyList<GridPoint> ObjectiveRoute,
+    IReadOnlyList<InvasionScoutRoomReport> Rooms,
+    IReadOnlyList<InvasionScoutSectionReport> Sections,
+    InvasionScoutObjectiveReport Objective,
+    IReadOnlyList<InvasionScoutActorReport> VisibleActors);
+
 public sealed record InvasionScoutReport(
     string LocationId,
     string Category,
@@ -16,6 +46,7 @@ public sealed record InvasionScoutReport(
     bool IsUnlocked,
     bool IsAvailable,
     TimeSpan RegenerationRemaining,
+    InvasionScoutMapReport Map,
     bool IsRepeatVariant = false,
     string? ScenarioDigest = null);
 
@@ -44,7 +75,7 @@ public static class InvasionCampaignService
             location.Category,
             floor.Id,
             floor.Depth,
-            floor.Objective,
+            floor.Objective.Kind,
             floor.Sections.Count,
             floor.ThreatTags.OrderBy(x => x, StringComparer.Ordinal).ToArray(),
             floor.Sections.Aggregate(ResourceBundle.Zero, (sum, x) => sum.Add(x.Loot)),
@@ -53,8 +84,50 @@ public static class InvasionCampaignService
             IsFloorUnlocked(state, location, baseFloor),
             state.Realtime.IsInvasionReady(location.Id, floor.Id),
             state.Realtime.InvasionRegenerationRemaining(location.Id, floor.Id),
+            BuildScoutMap(floor),
             scenario.IsRepeatVariant,
             scenario.ScenarioDigest);
+    }
+
+    private static InvasionScoutMapReport BuildScoutMap(InvasionFloorDefinition floor)
+    {
+        var tiles = new List<InvasionScoutTileReport>(floor.Board.Width * floor.Board.Height);
+        for (var y = 0; y < floor.Board.Height; y++)
+        for (var x = 0; x < floor.Board.Width; x++)
+        {
+            var position = new GridPoint(x, y);
+            tiles.Add(new InvasionScoutTileReport(position, floor.Board.GetTile(position)));
+        }
+        var actors = floor.Board.Guards
+            .Select(x => new InvasionScoutActorReport(x.InstanceId, x.DefinitionId, InvasionScoutActorKind.Guard, x.Position))
+            .Concat(floor.Board.Traps.Select(x => new InvasionScoutActorReport(x.InstanceId, x.DefinitionId, InvasionScoutActorKind.Trap, x.Position)))
+            .Concat(floor.Board.Facilities.Select(x => new InvasionScoutActorReport(x.InstanceId, x.DefinitionId, InvasionScoutActorKind.Facility, x.Position)))
+            .OrderBy(x => x.InstanceId, StringComparer.Ordinal)
+            .ToArray();
+        return new InvasionScoutMapReport(
+            InvasionMapDigest.Compute(floor),
+            floor.Board.Width,
+            floor.Board.Height,
+            tiles,
+            floor.ObjectiveRoute().ToArray(),
+            floor.Board.Rooms
+                .OrderBy(x => x.InstanceId, StringComparer.Ordinal)
+                .Select(x => new InvasionScoutRoomReport(
+                    x.InstanceId,
+                    x.DefinitionId,
+                    x.Origin,
+                    x.Width,
+                    x.Height,
+                    (x.Connections ?? [])
+                        .Select(connection => new InvasionScoutRoomConnectionReport(connection.LocalCell, connection.Direction))
+                        .ToArray()))
+                .ToArray(),
+            floor.Sections.Select(x => new InvasionScoutSectionReport(
+                x.Id,
+                x.Cells.OrderBy(cell => cell.Y).ThenBy(cell => cell.X).ToArray(),
+                x.Checkpoint)).ToArray(),
+            new InvasionScoutObjectiveReport(floor.Objective.Kind, floor.Objective.Position),
+            actors);
     }
 
     public static InvasionResolvedScenario ResolveScenario(CampaignState state, InvasionContent content, string locationId, string floorId, int seed, bool? firstClearOverride = null)

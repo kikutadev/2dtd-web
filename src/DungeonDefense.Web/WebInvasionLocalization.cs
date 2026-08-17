@@ -38,9 +38,9 @@ internal static class WebInvasionLocalization
         ["start"] = ("Begin Invasion", "侵攻開始"), ["deploy_all"] = ("Deploy All", "全軍投入"),
         ["support"] = ("Support", "支援"), ["mend"] = ("Mend 25 MP", "治癒 25 MP"), ["ward"] = ("Ward 35 MP", "防護 35 MP"),
         ["retreat"] = ("Retreat", "撤退"), ["resume"] = ("Resume", "再生"), ["pause"] = ("Pause", "一時停止"),
-        ["reserve"] = ("Reserve", "予備"), ["active"] = ("Active", "戦闘中"), ["defeated"] = ("Defeated", "戦闘不能"),
+        ["reserve"] = ("Reserve", "予備"), ["staging"] = ("Staging", "投入待ち"), ["active"] = ("Active", "戦闘中"), ["enemy"] = ("Enemy", "敵"), ["defeated"] = ("Defeated", "戦闘不能"),
         ["section_hp"] = ("Defense HP", "防衛HP"), ["secured"] = ("Secured Loot", "確保済み戦利品"),
-        ["recent"] = ("Recent Events", "直近の戦況"), ["events_empty"] = ("Deploy units to begin attacking the current section.", "部隊を投入すると現在区画への攻撃が始まります。"),
+        ["recent"] = ("Recent Events", "直近の戦況"), ["events_empty"] = ("Deploy units to enter the hostile dungeon.", "部隊を投入すると敵ダンジョンへの進軍が始まります。"),
         ["success"] = ("Invasion Success", "侵攻成功"), ["wiped"] = ("Party Wiped", "部隊壊滅"), ["retreated"] = ("Retreated", "撤退完了"),
         ["result"] = ("Result", "結果"), ["again"] = ("Back to Briefing", "偵察へ戻る"),
         ["running"] = ("In progress", "侵攻中"), ["ready"] = ("Ready", "出撃準備完了"),
@@ -69,7 +69,7 @@ internal static class WebInvasionLocalization
         ["invasion.result.lesson.success"] = ("The assault broke through. Compare survivors and secured loot before choosing the next target.", "防衛線を突破しました。生存戦力と確保した戦利品を確認して次の侵攻先を選びます。"),
         ["invasion.result.lesson.retreated"] = ("The force disengaged with secured loot. Re-form the party around the section that stopped the advance.", "確保済み戦利品を持って離脱しました。進軍が止まった区画に合わせて編成を見直せます。"),
         ["invasion.result.lesson.wiped"] = ("The force was wiped before the objective. Review the reached section and party composition before retrying.", "目標達成前に部隊が壊滅しました。到達区画と編成を見直して再挑戦します。"),
-        ["footer"] = ("This section-based battle runs the production InvasionSimulation directly; it does not reuse or imitate DefenseSimulation.", "この区画制戦闘はproduction InvasionSimulationを直接実行し、DefenseSimulationへの擬似変換は行っていません。"),
+        ["footer"] = ("This demo renders the production hostile-dungeon simulation and shared Product Presentation in the browser.", "このデモはproductionの敵ダンジョン侵攻Simulationと共通Product Presentationをブラウザで描画しています。"),
     };
 
     public static string Text(string locale, string key)

@@ -25,7 +25,7 @@ public static class CampaignSaveService
         var resources = state.Resources;
         var realtime = state.Realtime;
         return new CampaignSaveFile(
-            1,
+            2,
             "campaign_save",
             contentVersion,
             state.Day,
@@ -68,7 +68,7 @@ public static class CampaignSaveService
     public static CampaignSaveImportResult Import(CampaignSaveFile file, string expectedContentVersion)
     {
         ArgumentNullException.ThrowIfNull(file);
-        if (file.SchemaVersion != 1 || !string.Equals(file.Kind, "campaign_save", StringComparison.Ordinal))
+        if (file.SchemaVersion != 2 || !string.Equals(file.Kind, "campaign_save", StringComparison.Ordinal))
             throw new InvalidDataException("Unsupported campaign save schema/kind.");
         if (!string.Equals(file.ContentVersion, expectedContentVersion, StringComparison.Ordinal))
             throw new InvalidDataException($"Campaign save content version mismatch: {file.ContentVersion} != {expectedContentVersion}.");
@@ -149,22 +149,29 @@ public static class CampaignSaveService
             snapshot.ContentVersion,
             active.LocationId,
             snapshot.FloorId,
+            snapshot.MapDigest,
             snapshot.Seed,
             snapshot.Tick,
             snapshot.Mp,
             snapshot.UsedDeploymentCapacity,
-            snapshot.SectionIndex,
-            snapshot.SectionDefenseHp,
-            snapshot.SectionAttackCooldown,
             snapshot.RetreatRemainingTicks,
             snapshot.Outcome.ToString(),
             ToFile(snapshot.SecuredLoot),
-            snapshot.Units.Select(x => new CampaignActiveInvasionUnitFile(
-                x.EntityId, x.UnitId, x.FormationIndex, x.Hp, x.Shield, x.AttackCooldownRemaining, x.Deployed,
-                x.Archetype.ToString(), x.SectionDamagePercent, x.IncomingDamagePercent, x.AttackCooldownPercent)).ToArray(),
-            snapshot.SpellCooldowns.Select(x => new CampaignActiveInvasionSpellCooldownFile(x.SpellId, x.RemainingTicks)).ToArray(),
+            snapshot.ObjectiveStructureHp,
+            snapshot.ClearedSectionIds.OrderBy(x => x, StringComparer.Ordinal).ToArray(),
+            snapshot.Units.OrderBy(x => x.FormationIndex).Select(x => new CampaignActiveInvasionUnitFile(
+                x.EntityId, x.DefinitionId, x.FormationIndex, ToFile(x.Position), x.Hp, x.Shield, x.RouteProgressUnits,
+                x.PathIndex, x.MoveRemainder, x.NextMoveTick, x.NextAttackTick, x.DeploymentRequested, x.Admitted,
+                x.TargetEntityId, x.Archetype.ToString(), x.Statuses.Select(ToFile).ToArray())).ToArray(),
+            snapshot.Guards.OrderBy(x => x.EntityId, StringComparer.Ordinal).Select(x => new CampaignActiveInvasionGuardFile(
+                x.EntityId, x.DefinitionId, ToFile(x.Position), x.Hp, x.NextMoveTick, x.NextAttackTick, x.TargetEntityId,
+                x.Statuses.Select(ToFile).ToArray())).ToArray(),
+            snapshot.TrapCooldowns.OrderBy(x => x.Id, StringComparer.Ordinal).Select(x => new CampaignActiveInvasionCooldownFile(x.Id, x.ReadyTick)).ToArray(),
+            snapshot.FacilityCooldowns.OrderBy(x => x.Id, StringComparer.Ordinal).Select(x => new CampaignActiveInvasionCooldownFile(x.Id, x.ReadyTick)).ToArray(),
+            snapshot.SpellCooldowns.OrderBy(x => x.SpellId, StringComparer.Ordinal).Select(x => new CampaignActiveInvasionSpellCooldownFile(x.SpellId, x.RemainingTicks)).ToArray(),
             snapshot.Events.Select(x => new CampaignActiveInvasionEventFile(
-                x.Tick, x.Type.ToString(), x.ActorId, x.TargetId, x.Amount, x.Detail)).ToArray(),
+                x.Tick, x.Type.ToString(), x.ActorId, x.TargetId, ToOptionalFile(x.Position), x.Amount, x.Detail,
+                ToOptionalFile(x.SourcePosition), x.SourceDefinitionId)).ToArray(),
             active.IsFirstClearScenario,
             active.IsResolved);
     }
@@ -173,40 +180,59 @@ public static class CampaignSaveService
     {
         if (!Enum.TryParse<InvasionOutcome>(file.Outcome, ignoreCase: false, out var outcome))
             throw new InvalidDataException($"Unknown active invasion outcome: {file.Outcome}.");
-        var events = file.Events.Select(x =>
-        {
-            if (!Enum.TryParse<InvasionEventType>(x.Type, ignoreCase: false, out var type))
-                throw new InvalidDataException($"Unknown active invasion event type: {x.Type}.");
-            return new InvasionEvent(x.Tick, type, x.ActorId, x.TargetId, x.Amount, x.Detail);
-        }).ToArray();
         var snapshot = new InvasionSimulationSnapshot(
             file.ContentVersion,
             file.FloorId,
+            file.MapDigest,
             file.Seed,
             file.Tick,
             file.Mp,
             file.UsedDeploymentCapacity,
-            file.SectionIndex,
-            file.SectionDefenseHp,
-            file.SectionAttackCooldown,
             file.RetreatRemainingTicks,
             outcome,
             ToDomain(file.SecuredLoot),
+            file.ObjectiveStructureHp,
+            file.ClearedSectionIds.ToArray(),
             file.Units.Select(x => new InvasionUnitRuntimeSnapshot(
-                x.EntityId, x.UnitId, x.FormationIndex, x.Hp, x.Shield, x.AttackCooldownRemaining, x.Deployed,
-                ParseArchetype(x.Archetype), x.SectionDamagePercent ?? 100, x.IncomingDamagePercent ?? 100, x.AttackCooldownPercent ?? 100)).ToArray(),
+                x.EntityId, x.DefinitionId, x.FormationIndex, ToDomain(x.Position), x.Hp, x.Shield, x.RouteProgressUnits,
+                x.PathIndex, x.MoveRemainder, x.NextMoveTick, x.NextAttackTick, x.DeploymentRequested, x.Admitted,
+                x.TargetEntityId, ParseArchetype(x.Archetype), x.Statuses.Select(ToDomain).ToArray())).ToArray(),
+            file.Guards.Select(x => new InvasionGuardRuntimeSnapshot(
+                x.EntityId, x.DefinitionId, ToDomain(x.Position), x.Hp, x.NextMoveTick, x.NextAttackTick, x.TargetEntityId,
+                x.Statuses.Select(ToDomain).ToArray())).ToArray(),
+            file.TrapCooldowns.Select(x => new InvasionCooldownSnapshot(x.Id, x.ReadyTick)).ToArray(),
+            file.FacilityCooldowns.Select(x => new InvasionCooldownSnapshot(x.Id, x.ReadyTick)).ToArray(),
             file.SpellCooldowns.Select(x => new InvasionSpellCooldownSnapshot(x.SpellId, x.RemainingTicks)).ToArray(),
-            events);
-        return new SuspendedInvasionState(file.LocationId, snapshot, file.IsFirstClearScenario ?? true, file.IsResolved ?? false);
+            file.Events.Select(x => new InvasionEvent(
+                x.Tick, ParseEventType(x.Type), x.ActorId, x.TargetId, ToOptionalDomain(x.Position), x.Amount, x.Detail,
+                ToOptionalDomain(x.SourcePosition), x.SourceDefinitionId)).ToArray());
+        return new SuspendedInvasionState(file.LocationId, snapshot, file.IsFirstClearScenario, file.IsResolved);
     }
 
-    private static InvasionUnitArchetype ParseArchetype(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return InvasionUnitArchetype.Generalist;
-        return Enum.TryParse<InvasionUnitArchetype>(value, ignoreCase: false, out var archetype)
+    private static InvasionUnitArchetype ParseArchetype(string value)
+        => Enum.TryParse<InvasionUnitArchetype>(value, ignoreCase: false, out var archetype)
             ? archetype
             : throw new InvalidDataException($"Unknown active invasion unit archetype: {value}.");
+
+    private static InvasionEventType ParseEventType(string value)
+        => Enum.TryParse<InvasionEventType>(value, ignoreCase: false, out var type)
+            ? type
+            : throw new InvalidDataException($"Unknown active invasion event type: {value}.");
+
+    private static CampaignActiveInvasionStatusFile ToFile(InvasionStatusSnapshot value)
+        => new(value.Kind.ToString(), value.Strength, value.RemainingTicks);
+
+    private static InvasionStatusSnapshot ToDomain(CampaignActiveInvasionStatusFile value)
+    {
+        if (!Enum.TryParse<StatusKind>(value.Kind, ignoreCase: false, out var kind))
+            throw new InvalidDataException($"Unknown active invasion status kind: {value.Kind}.");
+        return new InvasionStatusSnapshot(kind, value.Strength, value.RemainingTicks);
     }
+
+    private static CampaignGridPointFile ToFile(GridPoint value) => new(value.X, value.Y);
+    private static CampaignGridPointFile? ToOptionalFile(GridPoint? value) => value is { } point ? ToFile(point) : null;
+    private static GridPoint ToDomain(CampaignGridPointFile value) => new(value.X, value.Y);
+    private static GridPoint? ToOptionalDomain(CampaignGridPointFile? value) => value is null ? null : ToDomain(value);
 
     private static CampaignResourceFile ToFile(ResourceBundle value)
         => new(value.Stone, value.Iron, value.Soul, value.Relic);

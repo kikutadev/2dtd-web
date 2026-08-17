@@ -449,7 +449,7 @@ public sealed class DefenseSimulation
 
         foreach (var guard in AliveGuards(CurrentFloor.Id).OrderBy(x => x.EntityId, StringComparer.Ordinal))
         {
-            if (HasStatus(guard, StatusKind.Freeze) || Tick < guard.NextMoveTick || guard.TargetEntityId is null) continue;
+            if (CombatStatusRules.HasStatus(guard.Statuses, StatusKind.Freeze) || Tick < guard.NextMoveTick || guard.TargetEntityId is null) continue;
             var target = AliveInvaders(CurrentFloor.Id).SingleOrDefault(x => x.EntityId == guard.TargetEntityId);
             if (target is null) continue;
             var zone = GuardZone.Resolve(CurrentFloor.Board, _guardPlacements[guard.EntityId]);
@@ -463,7 +463,7 @@ public sealed class DefenseSimulation
             if (next != guard.Position)
             {
                 guard.Position = next;
-                guard.NextMoveTick = Tick + EffectiveMoveInterval(guard);
+                guard.NextMoveTick = Tick + CombatMovementRules.EffectiveMoveInterval(guard.Definition.MoveIntervalTicks, guard.Statuses);
                 Events.Add(new DefenseEvent(Tick, DefenseEventType.Move, guard.EntityId, guard.TargetEntityId, guard.Position, Detail: "guard", FloorId: guard.FloorId));
             }
         }
@@ -493,7 +493,7 @@ public sealed class DefenseSimulation
             var currentProgress = invader.RouteProgressUnits;
             var unconstrainedDesired = currentProgress;
             if (Tick >= invader.NextMoveTick
-                && !HasStatus(invader, StatusKind.Freeze)
+                && !CombatStatusRules.HasStatus(invader.Statuses, StatusKind.Freeze)
                 && !IsEngaged(invader)
                 && unconstrainedDesired < endpointProgress)
                 unconstrainedDesired = Math.Min(endpointProgress, unconstrainedDesired + ComputeMoveAdvance(invader));
@@ -549,11 +549,9 @@ public sealed class DefenseSimulation
 
     private static long ComputeMoveAdvance(RuntimeUnit unit)
     {
-        var interval = EffectiveMoveInterval(unit);
-        var numerator = RouteProgress.UnitsPerCell + unit.MoveRemainder;
-        var advance = numerator / interval;
-        unit.MoveRemainder = (int)(numerator % interval);
-        return advance;
+        var result = CombatMovementRules.ComputeRouteAdvance(unit.Definition.MoveIntervalTicks, unit.Statuses, unit.MoveRemainder);
+        unit.MoveRemainder = result.Remainder;
+        return result.Advance;
     }
 
     private void SetNormalInvaderProgress(RuntimeUnit unit, FloorRuntime floor, long desiredProgress)
@@ -654,7 +652,7 @@ public sealed class DefenseSimulation
     {
         foreach (var guard in AliveGuards(CurrentFloor.Id).OrderBy(x => x.EntityId, StringComparer.Ordinal))
         {
-            if (HasStatus(guard, StatusKind.Freeze) || Tick < guard.NextAttackTick || guard.TargetEntityId is null) continue;
+            if (CombatStatusRules.HasStatus(guard.Statuses, StatusKind.Freeze) || Tick < guard.NextAttackTick || guard.TargetEntityId is null) continue;
             var target = AliveInvaders(CurrentFloor.Id).SingleOrDefault(x => x.EntityId == guard.TargetEntityId);
             if (target is null || guard.Position.ManhattanDistance(target.Position) > guard.Definition.AttackRange) continue;
             if (guard.Definition.AttackRange > 1 && !DungeonLineOfSight.HasLineOfSight(CurrentFloor.Board, guard.Position, target.Position)) continue;
@@ -664,7 +662,7 @@ public sealed class DefenseSimulation
 
         foreach (var invader in AliveInvaders(CurrentFloor.Id).OrderBy(x => x.EntityId, StringComparer.Ordinal))
         {
-            if (HasStatus(invader, StatusKind.Freeze) || Tick < invader.NextAttackTick) continue;
+            if (CombatStatusRules.HasStatus(invader.Statuses, StatusKind.Freeze) || Tick < invader.NextAttackTick) continue;
             if (invader.Definition.Role == UnitRole.Priest && invader.Definition.HealPower > 0)
             {
                 var ally = AliveInvaders(CurrentFloor.Id)
@@ -943,18 +941,9 @@ public sealed class DefenseSimulation
     private static int ApplyPercentBonus(int baseValue, int bonusPercent)
         => Math.Max(1, (baseValue * (100 + Math.Max(0, bonusPercent)) + 99) / 100);
 
-    private static int EffectiveMoveInterval(RuntimeUnit unit)
-    {
-        var multiplier = unit.Statuses.TryGetValue(StatusKind.Slow, out var slow) ? Math.Max(1, slow.Strength) : 1;
-        return Math.Max(1, unit.Definition.MoveIntervalTicks * multiplier);
-    }
-
-    private static bool HasStatus(RuntimeUnit unit, StatusKind kind) => unit.Statuses.TryGetValue(kind, out var status) && status.RemainingTicks > 0;
-
     private void ApplyStatus(RuntimeUnit target, StatusEffect status, string source)
     {
-        target.Statuses.TryGetValue(status.Kind, out var existing);
-        target.Statuses[status.Kind] = StatusRules.Merge(existing, status);
+        CombatStatusRules.Merge(target.Statuses, status);
         Events.Add(new DefenseEvent(Tick, DefenseEventType.StatusApplied, source, target.EntityId, target.Position, status.Strength, $"{status.Kind}:{status.DurationTicksOrRemaining()}", target.FloorId));
     }
 

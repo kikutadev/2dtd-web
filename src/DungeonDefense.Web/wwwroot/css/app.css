@@ -122,7 +122,7 @@ button:disabled { cursor: not-allowed; opacity: .46; }
   .demo-guide { align-items: flex-start; }
 }
 
-/* Invasion demo is a separate section-based presentation; it intentionally does not reuse the Defense board. */
+/* Invasion is a separate product mode, but it renders the shared hostile-dungeon spatial state. */
 .mode-link { white-space: nowrap; padding: .4rem .58rem; font-size: .7rem; border-color: #4f6871; }
 .invasion-layout { align-items: start; }
 .invasion-scout-body, .invasion-battle-body { padding: .85rem; display: grid; gap: .85rem; }
@@ -154,7 +154,7 @@ button:disabled { cursor: not-allowed; opacity: .46; }
 .count-stepper { display: grid; grid-template-columns: 30px 28px 30px; gap: .15rem; align-items: center; text-align: center; }
 .count-stepper button { padding: .34rem 0; }
 .count-stepper span { color: #d7e1e4; font-weight: 700; font-size: .8rem; }
-.capacity-meter, .section-hp-meter, .unit-hp-meter { height: 6px; background: #222c30; overflow: hidden; border-radius: 999px; }
+.capacity-meter, .unit-hp-meter { height: 6px; background: #222c30; overflow: hidden; border-radius: 999px; }
 .capacity-meter span { display: block; height: 100%; background: #b47736; }
 .capacity-text { text-align: right; color: #89979d; font-size: .68rem; }
 .invasion-start { width: 100%; }
@@ -162,8 +162,6 @@ button:disabled { cursor: not-allowed; opacity: .46; }
 .section-panel-head { display: flex; justify-content: space-between; gap: 1rem; margin-bottom: .38rem; font-size: .72rem; }
 .section-panel-head span { color: #77878e; }
 .section-panel-head strong { color: #d2dadd; }
-.section-hp-meter { height: 9px; }
-.section-hp-meter span { display: block; height: 100%; background: #b66d42; transition: width .08s linear; }
 .party-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .45rem; }
 .party-unit { min-width: 0; display: grid; grid-template-columns: 46px minmax(0, 1fr); align-items: center; gap: .42rem; border: 1px solid #344148; background: #10171b; padding: .42rem; border-radius: 5px; }
 .party-unit.deployed { border-color: #4d7775; }
@@ -201,35 +199,59 @@ button:disabled { cursor: not-allowed; opacity: .46; }
 }
 
 
-/* Shared Product Presentation: invasion battlefield keeps the same Reserve → Frontline → Fortification metaphor as Godot. */
-.invasion-battlefield { display: grid; grid-template-columns: minmax(86px,.7fr) 28px minmax(220px,2fr) 28px minmax(138px,.9fr); gap: .45rem; align-items: stretch; min-height: 168px; padding: .55rem; border: 1px solid #304049; background: radial-gradient(circle at 58% 48%, rgba(61,102,103,.14), transparent 36%), #0b1114; overflow: hidden; }
-.battle-lane, .fortification-lane { min-width: 0; border: 1px solid #324149; background: rgba(14,21,25,.76); padding: .45rem; display: grid; align-content: center; gap: .4rem; }
-.reserve-lane { opacity: .78; }
-.frontline-lane { border-color: #456d70; background: rgba(18,34,37,.72); }
-.battle-lane-heading { display: flex; justify-content: space-between; gap: .5rem; color: #89999f; font-size: .63rem; }
-.battle-lane-heading strong { color: #bad5d5; }
-.battle-unit-row { display: flex; flex-wrap: wrap; justify-content: center; align-items: end; gap: .24rem; min-height: 74px; }
-.battle-unit { width: 52px; display: grid; justify-items: center; gap: .12rem; }
-.battle-unit.reserve { width: 30px; opacity: .68; }
-.battle-unit img { width: 100%; aspect-ratio: 1; object-fit: contain; image-rendering: pixelated; filter: drop-shadow(0 2px 2px rgba(0,0,0,.65)); }
-.battle-unit small { color: #8fc6cf; font-size: .58rem; }
-.battle-empty { margin: 0; align-self: center; color: #6f7f85; font-size: .68rem; text-align: center; }
-.battle-advance { display: grid; place-items: center; color: #d48b3e; font-size: 1.35rem; text-shadow: 0 0 8px rgba(212,139,62,.24); }
-.fortification-lane { text-align: center; border-color: #5f4435; background: rgba(31,21,17,.72); }
-.fortification-stage { min-height: 66px; display: grid; place-items: center; background-image: url('../assets/production/tiles/TS-01.png'); background-repeat: repeat; background-size: 32px 32px; image-rendering: pixelated; box-shadow: inset 0 0 26px rgba(0,0,0,.62); }
-.fortification-stage img { width: min(100%, 150px); max-height: 62px; object-fit: contain; image-rendering: pixelated; filter: drop-shadow(0 3px 4px rgba(0,0,0,.7)); }
-.fortification-hud { display: grid; gap: .22rem; font-size: .65rem; }
-.fortification-hud strong { color: #d79a57; }
-.fortification-hud small { color: #88796e; line-height: 1.3; }
-.fortification-hud > span { color: #c6b6aa; }
-.battle-latest-event { min-height: 1.7rem; display: grid; place-items: center; padding: .35rem .55rem; border-top: 1px solid #26343a; color: #8d9aa0; font-size: .7rem; text-align: center; }
+/* Shared spatial Invasion Product Presentation: hostile Dungeon Map is the visual authority. */
+.invasion-battle-body { min-height: 0; grid-template-rows: auto auto minmax(150px, 1fr) auto; gap: .45rem; }
+.battle-track { gap: .28rem; }
+.battle-track .invasion-section { padding: .32rem .45rem; }
+.battle-track .invasion-section strong { font-size: .64rem; }
+.battle-staging-strip { display: flex; align-items: center; gap: .65rem; min-height: 30px; padding: .25rem .45rem; border: 1px solid #28383f; background: rgba(11,17,20,.84); }
+.staging-copy { display: flex; flex-wrap: wrap; gap: .55rem; color: #708087; font-size: .61rem; }
+.staging-copy strong { color: #b5cccf; }
+.staging-units { display: flex; align-items: center; gap: .12rem; min-width: 0; }
+.staging-units img { width: 24px; height: 24px; object-fit: contain; image-rendering: pixelated; opacity: .58; }
+.staging-units img.staged { opacity: .86; }
+.invasion-dungeon-map { min-width: 0; min-height: 0; border: 1px solid #2d3b42; background: #070d10; overflow: hidden; box-shadow: inset 0 0 28px rgba(0,0,0,.5); }
+.invasion-dungeon-map.battle { height: clamp(150px, 30vh, 265px); }
+.invasion-dungeon-map.compact { width: min(230px, 30vw); height: 104px; }
+.invasion-dungeon-map svg { display: block; width: 100%; height: 100%; background: #080e11; image-rendering: pixelated; }
+.invasion-dungeon-map image { image-rendering: pixelated; }
+.invasion-dungeon-map .map-backdrop { fill: #0a1115; }
+.invasion-dungeon-map .tile.bedrock { fill: #11171b; }
+.invasion-dungeon-map .room-footprint { fill: rgba(66,93,68,.12); stroke: none; }
+.invasion-dungeon-map .room-wall { stroke: #8c938d; stroke-width: .075; stroke-linecap: square; vector-effect: non-scaling-stroke; }
+.invasion-dungeon-map .objective-route { fill: none; stroke: #68aab0; stroke-width: .055; stroke-opacity: .68; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.invasion-dungeon-map .current-section-cell { fill: rgba(210,148,72,.10); }
+.invasion-dungeon-map .checkpoint { fill: rgba(126,139,144,.10); stroke: #7e8b90; stroke-width: .045; vector-effect: non-scaling-stroke; }
+.invasion-dungeon-map .checkpoint.current { fill: rgba(210,148,72,.20); stroke: #d29448; }
+.invasion-dungeon-map .checkpoint.cleared { fill: rgba(71,114,105,.16); stroke: #5d9285; }
+.invasion-dungeon-map .checkpoint.scout { stroke: #bf8444; fill: rgba(191,132,68,.12); }
+.invasion-dungeon-map .map-actor, .invasion-dungeon-map .combat-unit image { filter: drop-shadow(0 .08px .08px rgba(0,0,0,.85)); }
+.invasion-dungeon-map .combat-unit.dying { opacity: .72; }
+.invasion-dungeon-map .unit-hp-bg, .invasion-dungeon-map .objective-hp-bg { fill: #06090b; }
+.invasion-dungeon-map .unit-hp-fill.attacker { fill: #70b2b6; }
+.invasion-dungeon-map .unit-hp-fill.enemy { fill: #d18b48; }
+.invasion-dungeon-map .objective-hp-fill { fill: #d18b48; }
+.invasion-dungeon-map .hit-flash { fill: white; pointer-events: none; }
+.invasion-dungeon-map .map-objective polygon { fill: rgba(210,148,72,.42); stroke: #d29448; stroke-width: .06; vector-effect: non-scaling-stroke; }
+.invasion-dungeon-map .map-objective.completed { opacity: .58; }
+.invasion-dungeon-map .projectile-trail { stroke: rgba(216,175,111,.55); stroke-width: .035; vector-effect: non-scaling-stroke; }
+.invasion-dungeon-map .projectile { fill: #e8dfc9; stroke: #b77a3d; stroke-width: .025; vector-effect: non-scaling-stroke; }
+.battle-latest-event { min-height: 1.55rem; display: grid; place-items: center; padding: .25rem .5rem; border-top: 1px solid #26343a; color: #8d9aa0; font-size: .66rem; text-align: center; }
 .deploy-commands { grid-template-columns: 1fr; }
+.scout-card { grid-template-columns: minmax(180px,1fr) minmax(180px,.8fr) auto auto; }
+.scout-card .invasion-dungeon-map { justify-self: stretch; }
 @media (max-width: 760px) {
-  .invasion-battlefield { grid-template-columns: minmax(72px,.7fr) 22px minmax(190px,2fr) 22px minmax(122px,.9fr); overflow-x: auto; }
+  .invasion-dungeon-map.battle { height: 170px; }
+  .scout-card { grid-template-columns: minmax(0,1fr) minmax(170px,.8fr) auto; }
+  .scout-card .scout-card-main { grid-column: 1; }
+  .scout-card .selection-progress { display: none; }
 }
 @media (max-width: 520px) {
-  .invasion-battlefield { min-width: 620px; }
-  .invasion-battle-body { overflow-x: auto; }
+  .battle-staging-strip { align-items: flex-start; flex-direction: column; gap: .2rem; }
+  .invasion-dungeon-map.battle { height: 165px; }
+  .invasion-dungeon-map.compact { width: 100%; height: 116px; }
+  .scout-card { grid-template-columns: 1fr auto; }
+  .scout-card .scout-card-main, .scout-card .invasion-dungeon-map { grid-column: 1 / -1; }
 }
 
 /* Defense result uses the same world-first hierarchy as the Godot result: Core state, outcome, then analysis. */
@@ -294,4 +316,48 @@ button:disabled { cursor: not-allowed; opacity: .46; }
 @media (max-width: 520px) {
   .invasion-result-body { grid-template-columns: 1fr; min-height: 320px; }
   .invasion-result-body .result-floor-strip { grid-column: 1; }
+}
+
+/* Product mobile-landscape gate: keep the spatial battlefield and essential controls in one viewport. */
+@media (max-height: 430px) and (orientation: landscape) {
+  .invasion-shell { height: 100dvh; min-height: 0; overflow: hidden; padding: 6px 10px; display: grid; grid-template-rows: auto auto minmax(0,1fr); }
+  .invasion-shell .topbar { padding: .1rem .1rem .35rem; align-items: center; }
+  .invasion-shell h1 { font-size: 1rem; margin: 0; }
+  .invasion-shell .locale-picker button, .invasion-shell .mode-link { padding: .25rem .38rem; font-size: .61rem; }
+  .invasion-shell .status-row { margin: .35rem 0; }
+  .invasion-shell .status-row > div { padding: .28rem .45rem; }
+  .invasion-shell .status-row span { font-size: .52rem; }
+  .invasion-shell .status-row strong { font-size: .72rem; margin-top: .03rem; }
+  .invasion-shell .game-layout { grid-template-columns: minmax(0,1fr) clamp(170px,25vw,220px); gap: .4rem; height: 100%; min-height: 0; align-items: stretch; }
+  .invasion-shell .world-card, .invasion-shell .control-card { min-height: 0; height: 100%; }
+  .invasion-shell .world-heading { padding: .34rem .5rem; min-height: 34px; }
+  .invasion-shell .world-heading strong { font-size: .8rem; }
+  .invasion-shell .world-heading span { font-size: .6rem; }
+  .invasion-shell .speed-picker button { padding: .25rem .42rem; min-width: 1.9rem; font-size: .68rem; }
+  .invasion-shell .invasion-battle { display: grid; grid-template-rows: auto minmax(0,1fr); }
+  .invasion-shell .invasion-battle-body { padding: .35rem .45rem; gap: .28rem; min-height: 0; grid-template-rows: auto auto minmax(0,1fr) auto; overflow: hidden; }
+  .invasion-shell .battle-track .invasion-section { padding: .22rem .32rem; gap: .05rem; }
+  .invasion-shell .battle-track .invasion-section span { font-size: .49rem; }
+  .invasion-shell .battle-track .invasion-section strong { font-size: .55rem; }
+  .invasion-shell .battle-staging-strip { min-height: 24px; padding: .15rem .3rem; gap: .35rem; }
+  .invasion-shell .staging-copy { font-size: .51rem; gap: .35rem; }
+  .invasion-shell .staging-units img { width: 19px; height: 19px; }
+  .invasion-shell .invasion-dungeon-map.battle { height: 100%; min-height: 104px; }
+  .invasion-shell .battle-latest-event { min-height: 1.15rem; padding: .12rem .3rem; font-size: .54rem; }
+  .invasion-shell .invasion-controls { display: block; padding: .35rem .45rem; overflow: hidden; }
+  .invasion-shell .invasion-controls .control-group { display: grid; grid-template-columns: 1fr 1fr; gap: .25rem; padding: .25rem 0; border-bottom: 1px solid #28343a; }
+  .invasion-shell .invasion-controls .control-group button { padding: .42rem .3rem; font-size: .63rem; }
+  .invasion-shell .invasion-controls .deploy-commands button:last-child { grid-column: 1 / -1; }
+  .invasion-shell .invasion-controls .invasion-summary { display: none; }
+  .invasion-shell .invasion-controls .control-group:last-child button.danger { grid-column: 1 / -1; }
+  .invasion-shell .invasion-briefing { overflow: auto; }
+  .invasion-shell .invasion-selection-list { padding: .45rem; gap: .35rem; }
+  .invasion-shell .invasion-selection-card { padding: .4rem .45rem; gap: .45rem; }
+  .invasion-shell .scout-card { grid-template-columns: minmax(145px,1fr) minmax(145px,.75fr) auto; }
+  .invasion-shell .scout-card .selection-progress { display: none; }
+  .invasion-shell .invasion-dungeon-map.compact { width: 100%; height: 82px; }
+  .invasion-shell .invasion-formation { display: block; padding: .4rem; overflow: auto; }
+  .invasion-shell .formation-unit { grid-template-columns: 34px minmax(0,1fr) auto; padding: .3rem; gap: .3rem; }
+  .invasion-shell .formation-unit img { width: 34px; height: 34px; }
+  .invasion-shell .formation-target-summary { padding: .5rem; gap: .45rem; }
 }

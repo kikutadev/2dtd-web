@@ -60,9 +60,54 @@ public static class InvasionPreparationPresentation
                 report.IsUnlocked,
                 report.IsAvailable,
                 report.RegenerationRemaining,
+                BuildScoutMap(report.Map),
                 report.IsRepeatVariant))
             .ToImmutableArray();
         return new InvasionScoutVisualState(locationId, floors);
+    }
+
+    private static InvasionScoutMapVisualState BuildScoutMap(InvasionScoutMapReport map)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        var route = map.ObjectiveRoute.ToHashSet();
+        var tiles = map.Tiles.Select(tile => new InvasionTileVisualState(
+            tile.Position,
+            tile.Kind,
+            ProductAssetIdentity.Tile(tile.Kind),
+            route.Contains(tile.Position))).ToImmutableArray();
+        var sections = map.Sections.Select(section => new InvasionScoutSectionVisualState(
+            section.SectionId,
+            section.Checkpoint,
+            section.Cells.ToImmutableArray())).ToImmutableArray();
+        var actors = map.VisibleActors.Select(actor => new InvasionScoutActorVisualState(
+            actor.InstanceId,
+            actor.DefinitionId,
+            actor.Kind,
+            actor.Position,
+            actor.Kind switch
+            {
+                InvasionScoutActorKind.Guard => ProductAssetIdentity.Unit(actor.DefinitionId, UnitFacing.West),
+                InvasionScoutActorKind.Trap => ProductAssetIdentity.Trap(actor.DefinitionId),
+                InvasionScoutActorKind.Facility => ProductAssetIdentity.Facility(actor.DefinitionId),
+                _ => null,
+            })).ToImmutableArray();
+        return new InvasionScoutMapVisualState(
+            map.MapDigest,
+            map.Width,
+            map.Height,
+            tiles,
+            map.ObjectiveRoute.ToImmutableArray(),
+            map.Rooms.Select(room => new InvasionRoomVisualState(
+                room.InstanceId,
+                room.DefinitionId,
+                room.Origin,
+                room.Width,
+                room.Height,
+                room.Connections.Select(connection => new InvasionRoomConnectionVisualState(connection.LocalCell, connection.Direction)).ToImmutableArray()))
+                .ToImmutableArray(),
+            sections,
+            new InvasionScoutObjectiveVisualState(map.Objective.Kind, map.Objective.Position),
+            actors);
     }
 
     public static InvasionFormationVisualState BuildFormation(
@@ -76,12 +121,18 @@ public static class InvasionPreparationPresentation
 
         var units = content.UnitDeploymentCosts
             .OrderBy(x => x.Key, StringComparer.Ordinal)
-            .Select(pair => new InvasionFormationUnitVisualState(
-                pair.Key,
-                ProductAssetIdentity.Unit(pair.Key, UnitFacing.East),
-                content.UnitRoleProfile(pair.Key).Archetype,
-                pair.Value,
-                formation.GetValueOrDefault(pair.Key)))
+            .Select(pair =>
+            {
+                var definition = content.Combat.Units[pair.Key];
+                return new InvasionFormationUnitVisualState(
+                    pair.Key,
+                    ProductAssetIdentity.Unit(pair.Key, UnitFacing.East),
+                    content.UnitRoleProfile(pair.Key).Archetype,
+                    definition.MaxHp,
+                    definition.Damage,
+                    pair.Value,
+                    formation.GetValueOrDefault(pair.Key));
+            })
             .ToImmutableArray();
         var used = units.Sum(x => checked(x.DeploymentCost * x.Count));
         return new InvasionFormationVisualState(
@@ -121,7 +172,28 @@ public sealed record InvasionScoutFloorVisualState(
     bool IsUnlocked,
     bool IsAvailable,
     TimeSpan RegenerationRemaining,
+    InvasionScoutMapVisualState Map,
     bool IsRepeatVariant);
+
+public sealed record InvasionScoutMapVisualState(
+    string MapDigest,
+    int Width,
+    int Height,
+    ImmutableArray<InvasionTileVisualState> Tiles,
+    ImmutableArray<GridPoint> ObjectiveRoute,
+    ImmutableArray<InvasionRoomVisualState> Rooms,
+    ImmutableArray<InvasionScoutSectionVisualState> Sections,
+    InvasionScoutObjectiveVisualState Objective,
+    ImmutableArray<InvasionScoutActorVisualState> VisibleActors);
+
+public sealed record InvasionScoutSectionVisualState(string SectionId, GridPoint Checkpoint, ImmutableArray<GridPoint> Cells);
+public sealed record InvasionScoutObjectiveVisualState(InvasionObjectiveKind Kind, GridPoint Position);
+public sealed record InvasionScoutActorVisualState(
+    string InstanceId,
+    string DefinitionId,
+    InvasionScoutActorKind Kind,
+    GridPoint Position,
+    ProductAssetRef? Asset);
 
 public sealed record InvasionFormationVisualState(
     string LocationId,
@@ -137,5 +209,7 @@ public sealed record InvasionFormationUnitVisualState(
     string DefinitionId,
     ProductAssetRef? Asset,
     InvasionUnitArchetype Archetype,
+    int MaxHp,
+    int Damage,
     int DeploymentCost,
     int Count);

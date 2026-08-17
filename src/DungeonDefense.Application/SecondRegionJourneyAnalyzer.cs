@@ -66,7 +66,7 @@ public static class SecondRegionJourneyAnalyzer
         if (!string.Equals(schedule.RegionId, RegionId, StringComparison.Ordinal))
             throw new InvalidOperationException($"Second-region analyzer requires {RegionId} schedule.");
 
-        var campaign = CampaignGameSession.FromSave(startingSave, progression, invasionContent, baseContent.Units, regions);
+        var campaign = CampaignGameSession.FromSave(startingSave, progression, invasionContent, regions);
         if (!string.Equals(campaign.State.RegionId, RegionId, StringComparison.Ordinal) || campaign.State.Day != 1)
             throw new InvalidOperationException("Second-region journey must start at Deep Crypt Day 1.");
         if (!string.Equals(campaign.State.Dungeon.DeepestFloor.BoardProfileId, DungeonBoardProfiles.DeepCryptId, StringComparison.Ordinal))
@@ -262,7 +262,7 @@ public static class SecondRegionJourneyAnalyzer
             new InvasionFormationEntry("monster.skeleton_warrior", warriorCount),
             new InvasionFormationEntry("monster.skeleton_archer", archerCount),
         };
-        var simulation = campaign.StartInvasion(content, unitDefinitions, locationId, floorId, formation, seed);
+        var simulation = campaign.StartInvasion(content, locationId, floorId, formation, seed);
         simulation.DeployAllRemaining();
         var guard = 0;
         while (simulation.Outcome == InvasionOutcome.Running && guard++ < 20_000)
@@ -270,7 +270,7 @@ public static class SecondRegionJourneyAnalyzer
             if (simulation.Mp >= 35 && simulation.SpellCooldownRemaining("invasion.spell.ward") == 0)
                 simulation.CastSupportSpell("invasion.spell.ward");
             if (simulation.Mp >= 25 && simulation.SpellCooldownRemaining("invasion.spell.mend") == 0
-                && simulation.Units.Any(x => x.Alive && x.Deployed && x.Hp < x.Definition.MaxHp))
+                && simulation.Units.Any(x => x.Alive && x.Admitted && x.Hp < x.MaxHp))
                 simulation.CastSupportSpell("invasion.spell.mend");
             simulation.Step();
         }

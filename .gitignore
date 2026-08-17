@@ -9,3 +9,4 @@ publish/
 
 *.png.import
 live-*.png
+artifacts/

@@ -32,7 +32,7 @@ The browser demo runs the real `DefenseSimulation`; it is not a JavaScript reimp
 - ja/en Web-demo localization with production build terminology
 - responsive static hosting suitable for GitHub Pages
 
-It is **not** a port of the Godot editor UI. The browser host stays intentionally thin: placement rules, Defense rules, and the section-based Invasion rules remain in the production Application/Core, while the Web layer only renders and translates the minimum playable interactions. The Invasion view intentionally does not convert its section model into DefenseSimulation. Campaign persistence, audio, and the full native mobile shell remain outside the demo.
+It is **not** a port of the Godot UI tree. The browser host stays intentionally thin: placement rules, Defense rules, and the spatial hostile-dungeon Invasion runtime remain in production Application/Core, while shared Product Presentation supplies the host-neutral view state and combat motion consumed by both Godot and Web. Web owns HTTP transport, HTML/SVG/CSS rendering, browser input, and responsive layout—not a second gameplay model. Campaign persistence, audio, and the full native mobile shell remain outside the demo.
 
 ## Local build
 

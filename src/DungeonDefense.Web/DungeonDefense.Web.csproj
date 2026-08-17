@@ -10,6 +10,7 @@
     <ProjectReference Include="../DungeonDefense.Application/DungeonDefense.Application.csproj" />
     <ProjectReference Include="../DungeonDefense.Contracts/DungeonDefense.Contracts.csproj" />
     <ProjectReference Include="../DungeonDefense.Core/DungeonDefense.Core.csproj" />
+    <ProjectReference Include="../DungeonDefense.Infrastructure/DungeonDefense.Infrastructure.csproj" />
     <ProjectReference Include="../DungeonDefense.Presentation/DungeonDefense.Presentation.csproj" />
   </ItemGroup>
 

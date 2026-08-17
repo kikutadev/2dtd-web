@@ -54,7 +54,8 @@ public sealed class CombatMotionPresentation
             _currentFloorId = currentFloorId;
             foreach (var id in _units.Where(x => !string.Equals(x.Value.FloorId, currentFloorId, StringComparison.Ordinal)).Select(x => x.Key).ToArray())
                 _units.Remove(id);
-            _projectiles.RemoveAll(x => !_units.ContainsKey(x.ActorId) && !_staticActors.ContainsKey(x.ActorId) && !_units.ContainsKey(x.TargetId));
+            _projectiles.RemoveAll(x => !_units.ContainsKey(x.ActorId) && !_staticActors.ContainsKey(x.ActorId)
+                && !_units.ContainsKey(x.TargetId) && !_staticActors.ContainsKey(x.TargetId));
         }
 
         var visible = snapshots.Where(x => x.Alive && string.Equals(x.FloorId, currentFloorId, StringComparison.Ordinal)).ToArray();
@@ -276,19 +277,26 @@ public sealed class CombatMotionPresentation
     {
         _units.TryGetValue(combatEvent.ActorId, out var actor);
         CombatUnitTimelineState? target = null;
-        if (combatEvent.TargetId is { } targetId) _units.TryGetValue(targetId, out target);
-        if (target is null) return;
+        DefenseStaticActorSnapshot? staticTarget = null;
+        if (combatEvent.TargetId is { } targetId)
+        {
+            _units.TryGetValue(targetId, out target);
+            if (target is null) _staticActors.TryGetValue(targetId, out staticTarget);
+        }
+        if (target is null && staticTarget is null) return;
 
         _staticActors.TryGetValue(combatEvent.ActorId, out var staticActor);
         var sourcePosition = staticActor?.Anchor ?? combatEvent.SourcePosition;
         var sourceDefinitionId = staticActor?.DefinitionId ?? combatEvent.SourceDefinitionId ?? actor?.DefinitionId;
+        var targetLogicalPosition = target?.LogicalPosition ?? staticTarget!.Anchor;
+        var targetRenderPosition = target?.RenderPosition ?? PresentationPoint.From(staticTarget!.Anchor);
         var from = actor?.RenderPosition
-                   ?? (sourcePosition is { } sourceAnchor ? PresentationPoint.From(sourceAnchor) : target.RenderPosition);
-        var to = target.RenderPosition;
+                   ?? (sourcePosition is { } sourceAnchor ? PresentationPoint.From(sourceAnchor) : targetRenderPosition);
+        var to = targetRenderPosition;
         var logicalDistance = sourcePosition is { } source
-            ? source.ManhattanDistance(target.LogicalPosition)
+            ? source.ManhattanDistance(targetLogicalPosition)
             : actor is not null
-                ? actor.LogicalPosition.ManhattanDistance(target.LogicalPosition)
+                ? actor.LogicalPosition.ManhattanDistance(targetLogicalPosition)
                 : 0;
         var inferredRanged = logicalDistance > 1;
         var profile = CombatAttackPresentationProfiles.Resolve(sourceDefinitionId, inferredRanged);
@@ -300,7 +308,7 @@ public sealed class CombatMotionPresentation
             actor.AttackRanged = inferredRanged || profile.Trajectory != ProjectileTrajectoryKind.Instant;
             actor.AttackDurationSeconds = ScaleDuration(actor.AttackRanged ? 0.20 : 0.22, actor.AttackRanged ? 0.085 : 0.095);
             actor.AttackElapsedSeconds = 0;
-            actor.Facing = ResolveFacing(actor.LogicalPosition, target.LogicalPosition, actor.Facing);
+            actor.Facing = ResolveFacing(actor.LogicalPosition, targetLogicalPosition, actor.Facing);
         }
 
         if (profile.Trajectory == ProjectileTrajectoryKind.Instant && !inferredRanged)
@@ -321,7 +329,7 @@ public sealed class CombatMotionPresentation
                 _projectiles.RemoveAll(x => string.Equals(x.ActorId, combatEvent.ActorId, StringComparison.Ordinal));
                 _projectiles.Add(new CombatProjectileTimelineState(
                     combatEvent.ActorId,
-                    target.EntityId,
+                    combatEvent.TargetId!,
                     from,
                     to,
                     duration,

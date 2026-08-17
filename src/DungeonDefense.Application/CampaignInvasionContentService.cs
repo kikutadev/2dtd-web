@@ -18,6 +18,7 @@ public static class CampaignInvasionContentService
             baseContent.MpChargePerTick,
             baseContent.RetreatDisengageTicks,
             baseContent.WipeLootPercent,
+            baseContent.Combat,
             baseContent.UnitDeploymentCosts,
             baseContent.SupportSpells,
             baseContent.Locations,

@@ -1,9 +1,9 @@
 Source project: 2dTD
-Source game revision: 2521efef9d87d46e3eb0be2e38d9a7e013dc9b40
+Source game revision: 0cf1378b11f2d1bc1fa6bf548517a740e2a330fe
 Source snapshot paths dirty: no
 Source repository has unrelated changes: yes
 Reproducible from revision alone: yes
 Snapshot date: 2026-08-17
-Shared projects: DungeonDefense.Core, DungeonDefense.Contracts, DungeonDefense.Application, DungeonDefense.Presentation
-Content: content/vertical-slice.json, content/invasion-vertical-slice.json
+Shared projects: DungeonDefense.Core, DungeonDefense.Contracts, DungeonDefense.Application, DungeonDefense.Infrastructure, DungeonDefense.Presentation
+Content: content/vertical-slice.json, content/invasion-vertical-slice.json, content/invasion-maps.json
 Art: godot/assets/production

@@ -13,6 +13,10 @@ const port = Number(process.env.WEB_SMOKE_PORT ?? '5279');
 const debugPort = Number(process.env.WEB_SMOKE_DEBUG_PORT ?? '19433');
 const externalUrl = process.env.WEB_SMOKE_BASE_URL?.trim();
 const capturePath = process.env.WEB_SMOKE_CAPTURE_PATH?.trim();
+const invasionScoutCapturePath = process.env.WEB_SMOKE_INVASION_SCOUT_CAPTURE_PATH?.trim();
+const invasionCaptureWidth = Number(process.env.WEB_SMOKE_INVASION_CAPTURE_WIDTH ?? '844');
+const invasionCaptureHeight = Number(process.env.WEB_SMOKE_INVASION_CAPTURE_HEIGHT ?? '390');
+const invasionCaptureLocale = (process.env.WEB_SMOKE_INVASION_CAPTURE_LOCALE ?? 'ja').trim().toLowerCase();
 const buildCapturePath = process.env.WEB_SMOKE_BUILD_CAPTURE_PATH?.trim();
 const battleCapturePath = process.env.WEB_SMOKE_BATTLE_CAPTURE_PATH?.trim();
 const defenseCapturePath = process.env.WEB_SMOKE_DEFENSE_CAPTURE_PATH?.trim();
@@ -244,6 +248,32 @@ try {
   await waitForExpression(`document.body.innerText.includes('侵攻先') && document.body.innerText.includes('黒鉄坑道')`, 8_000, 'Invasion locations');
   await clickButtonContaining('確認');
   await waitForExpression(`document.body.innerText.includes('偵察') && document.body.innerText.includes('地下1階')`, 3_000, 'Invasion scouting');
+  const scoutMapSemantics = await evaluate(`(() => {
+    const map = document.querySelector('.scout-card .invasion-dungeon-map');
+    return {
+      map: !!map,
+      rooms: map?.querySelectorAll('.room-footprint').length ?? 0,
+      route: !!map?.querySelector('[data-testid="invasion-route"]'),
+      objective: !!map?.querySelector('[data-testid="invasion-objective"]'),
+      actors: map?.querySelectorAll('.scout-actor').length ?? 0,
+      digest: map?.getAttribute('data-map-digest') ?? ''
+    };
+  })()`);
+  if (!scoutMapSemantics.map || scoutMapSemantics.rooms < 3 || !scoutMapSemantics.route || !scoutMapSemantics.objective || scoutMapSemantics.actors < 1 || !scoutMapSemantics.digest)
+    throw new Error(`Invasion scout spatial semantics missing: ${JSON.stringify(scoutMapSemantics)}`);
+  if (invasionScoutCapturePath) {
+    if (invasionCaptureLocale === 'en') {
+      await clickButtonContaining('EN');
+      await waitForExpression(`document.body.innerText.includes('Black Iron Mine')`, 3_000, 'English invasion scout capture locale');
+    }
+    await captureViewport(invasionScoutCapturePath, invasionCaptureWidth, invasionCaptureHeight);
+    if (invasionCaptureLocale === 'en') {
+      await clickButtonContaining('日本語');
+      await waitForExpression(`document.body.innerText.includes('黒鉄坑道')`, 3_000, 'Japanese invasion scout continuation locale');
+    }
+    await cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+    await new Promise(resolve => setTimeout(resolve, 150));
+  }
   await clickButtonContaining('部隊編成');
   await waitForExpression(`document.body.innerText.includes('編成') && document.body.innerText.includes('侵攻開始')`, 3_000, 'Invasion formation');
   const invasionCapacity = await evaluate(`document.querySelector('.invasion-formation .capacity-text')?.textContent.trim()`);
@@ -251,33 +281,42 @@ try {
 
   await clickButtonContaining('侵攻開始');
   await waitForExpression(`document.body.innerText.includes('侵攻戦')`, 5_000, 'Invasion battle');
-  const battlefieldSemantics = await evaluate(`(() => ({
-    battlefield: !!document.querySelector('.invasion-battlefield'),
-    reserve: !!document.querySelector('.reserve-lane'),
-    frontline: !!document.querySelector('.frontline-lane'),
-    fortification: document.querySelector('.fortification-stage img')?.getAttribute('src') ?? ''
-  }))()`);
-  if (!battlefieldSemantics.battlefield || !battlefieldSemantics.reserve || !battlefieldSemantics.frontline || !battlefieldSemantics.fortification.includes('IV-01'))
-    throw new Error(`Invasion battlefield product semantics missing: ${JSON.stringify(battlefieldSemantics)}`);
+  const battlefieldSemantics = await evaluate(`(() => {
+    const map = document.querySelector('.invasion-dungeon-map.battle');
+    return {
+      battlefield: !!map,
+      reserve: !!document.querySelector('[data-testid="invasion-reserve"]'),
+      rooms: map?.querySelectorAll('.room-footprint').length ?? 0,
+      route: !!map?.querySelector('[data-testid="invasion-route"]'),
+      objective: !!map?.querySelector('[data-testid="invasion-objective"]'),
+      staticActors: map?.querySelectorAll('.static-actor').length ?? 0
+    };
+  })()`);
+  if (!battlefieldSemantics.battlefield || !battlefieldSemantics.reserve || battlefieldSemantics.rooms < 3 || !battlefieldSemantics.route || !battlefieldSemantics.objective || battlefieldSemantics.staticActors < 1)
+    throw new Error(`Invasion spatial battlefield semantics missing: ${JSON.stringify(battlefieldSemantics)}`);
   for (let index = 0; index < 12; index++) {
     const deployed = await evaluate(`(() => { const button = document.querySelector('.deploy-commands button.primary:not(:disabled)'); if (!button) return false; button.click(); return true; })()`);
     if (!deployed) break;
     await new Promise(resolve => setTimeout(resolve, 60));
   }
-  await waitForExpression(`document.querySelectorAll('.frontline-lane .battle-unit.active').length >= 6`, 3_000, 'Invasion frontline deployment');
+  await waitForExpression(`document.querySelectorAll('.invasion-dungeon-map.battle .combat-unit.attacker').length >= 2`, 4_000, 'Invasion spatial deployment');
   if (capturePath) {
-    await cdp('Emulation.setDeviceMetricsOverride', { width: 844, height: 390, deviceScaleFactor: 1, mobile: true });
-    await new Promise(resolve => setTimeout(resolve, 250));
-    const screenshot = await cdp('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
-    const resolvedCapturePath = path.resolve(repoRoot, capturePath);
-    await mkdir(path.dirname(resolvedCapturePath), { recursive: true });
-    await writeFile(resolvedCapturePath, Buffer.from(screenshot.data, 'base64'));
+    if (invasionCaptureLocale === 'en') {
+      await clickButtonContaining('EN');
+      await waitForExpression(`document.body.innerText.includes('Invasion Battle')`, 3_000, 'English invasion battle capture locale');
+    }
+    await captureViewport(capturePath, invasionCaptureWidth, invasionCaptureHeight);
+    if (invasionCaptureLocale === 'en') {
+      await clickButtonContaining('日本語');
+      await waitForExpression(`document.body.innerText.includes('侵攻戦')`, 3_000, 'Japanese invasion battle continuation locale');
+    }
     await cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
     await new Promise(resolve => setTimeout(resolve, 150));
   }
-  const invasionMobileMetrics = await evaluate(`(() => ({ viewport: window.innerWidth, page: document.documentElement.scrollWidth, battleClient: document.querySelector('.invasion-battle-body')?.clientWidth ?? 0, battleScroll: document.querySelector('.invasion-battle-body')?.scrollWidth ?? 0 }))()`);
+  const invasionMobileMetrics = await evaluate(`(() => ({ viewport: window.innerWidth, page: document.documentElement.scrollWidth, battleClient: document.querySelector('.invasion-battle-body')?.clientWidth ?? 0, battleScroll: document.querySelector('.invasion-battle-body')?.scrollWidth ?? 0, mapClient: document.querySelector('.invasion-dungeon-map.battle')?.clientWidth ?? 0, mapScroll: document.querySelector('.invasion-dungeon-map.battle')?.scrollWidth ?? 0 }))()`);
   if (invasionMobileMetrics.page > invasionMobileMetrics.viewport + 1) throw new Error(`Unexpected invasion document-level mobile overflow: ${JSON.stringify(invasionMobileMetrics)}`);
-  if (invasionMobileMetrics.battleScroll <= invasionMobileMetrics.battleClient) throw new Error(`Expected narrow viewport invasion battlefield overflow to remain contained inside battle body: ${JSON.stringify(invasionMobileMetrics)}`);
+  if (invasionMobileMetrics.battleScroll > invasionMobileMetrics.battleClient + 1 || invasionMobileMetrics.mapScroll > invasionMobileMetrics.mapClient + 1)
+    throw new Error(`Invasion spatial map must remain contained on narrow viewport: ${JSON.stringify(invasionMobileMetrics)}`);
 
   await clickButtonContaining('3×');
 

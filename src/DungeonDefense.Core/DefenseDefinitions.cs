@@ -94,6 +94,29 @@ public sealed record SpellDefinition(
 public sealed record SpawnGroupDefinition(string UnitId, int Count, int InitialDelayTicks, int SpawnIntervalTicks);
 public sealed record WaveDefinition(string Id, int InterWaveTicks, IReadOnlyList<SpawnGroupDefinition> SpawnGroups);
 
+/// <summary>
+/// Mode-neutral combat definition registry. Defense and Invasion may orchestrate combat
+/// differently, but a definition ID must not acquire different unit/trap/facility semantics
+/// merely because a different game mode is running.
+/// </summary>
+public sealed class DungeonCombatContent
+{
+    public required IReadOnlyDictionary<string, UnitDefinition> Units { get; init; }
+    public required IReadOnlyDictionary<string, TrapDefinition> Traps { get; init; }
+    public required IReadOnlyDictionary<string, FacilityDefinition> Facilities { get; init; }
+
+    public static DungeonCombatContent FromDefenseContent(DefenseContent content)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        return new DungeonCombatContent
+        {
+            Units = content.Units,
+            Traps = content.Traps,
+            Facilities = content.Facilities,
+        };
+    }
+}
+
 public sealed class DefenseContent
 {
     public required IReadOnlyDictionary<string, UnitDefinition> Units { get; init; }

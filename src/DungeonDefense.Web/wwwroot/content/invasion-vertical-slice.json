@@ -1,7 +1,7 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "invasion_content",
-  "content_version": "invasion.vertical-slice.v1",
+  "content_version": "invasion.vertical-slice.v2",
   "deployment_capacity": 12,
   "retreat_disengage_ticks": 60,
   "wipe_loot_percent": 50,
@@ -11,18 +11,12 @@
     {
       "unit_id": "monster.skeleton_warrior",
       "deployment_cost": 2,
-      "archetype": "VANGUARD",
-      "section_damage_percent": 100,
-      "incoming_damage_percent": 100,
-      "attack_cooldown_percent": 100
+      "archetype": "VANGUARD"
     },
     {
       "unit_id": "monster.skeleton_archer",
       "deployment_cost": 2,
-      "archetype": "BACKLINE_STRIKER",
-      "section_damage_percent": 133,
-      "incoming_damage_percent": 130,
-      "attack_cooldown_percent": 90
+      "archetype": "BACKLINE_STRIKER"
     }
   ],
   "spells": [
@@ -59,9 +53,6 @@
           "sections": [
             {
               "id": "b1.entry",
-              "defense_hp": 70,
-              "defense_damage": 4,
-              "defense_attack_cooldown_ticks": 18,
               "loot": {
                 "stone": 4,
                 "iron": 4,
@@ -71,9 +62,6 @@
             },
             {
               "id": "b1.narrow",
-              "defense_hp": 85,
-              "defense_damage": 5,
-              "defense_attack_cooldown_ticks": 18,
               "loot": {
                 "stone": 5,
                 "iron": 6,
@@ -83,9 +71,6 @@
             },
             {
               "id": "b1.store",
-              "defense_hp": 95,
-              "defense_damage": 5,
-              "defense_attack_cooldown_ticks": 16,
               "loot": {
                 "stone": 6,
                 "iron": 8,
@@ -95,9 +80,6 @@
             },
             {
               "id": "b1.raid",
-              "defense_hp": 110,
-              "defense_damage": 6,
-              "defense_attack_cooldown_ticks": 16,
               "loot": {
                 "stone": 8,
                 "iron": 12,
@@ -120,9 +102,6 @@
           },
           "regeneration_minutes": 30,
           "repeat_variation": {
-            "defense_hp_percent": 8,
-            "defense_damage_percent": 10,
-            "attack_cooldown_jitter_ticks": 1,
             "loot_percent": 10
           }
         },
@@ -138,9 +117,6 @@
           "sections": [
             {
               "id": "b2.entry",
-              "defense_hp": 90,
-              "defense_damage": 5,
-              "defense_attack_cooldown_ticks": 17,
               "loot": {
                 "stone": 3,
                 "iron": 5,
@@ -150,9 +126,6 @@
             },
             {
               "id": "b2.crossfire",
-              "defense_hp": 105,
-              "defense_damage": 6,
-              "defense_attack_cooldown_ticks": 15,
               "loot": {
                 "stone": 4,
                 "iron": 8,
@@ -162,9 +135,6 @@
             },
             {
               "id": "b2.guard",
-              "defense_hp": 120,
-              "defense_damage": 6,
-              "defense_attack_cooldown_ticks": 14,
               "loot": {
                 "stone": 5,
                 "iron": 9,
@@ -174,9 +144,6 @@
             },
             {
               "id": "b2.captain",
-              "defense_hp": 145,
-              "defense_damage": 8,
-              "defense_attack_cooldown_ticks": 14,
               "loot": {
                 "stone": 6,
                 "iron": 12,
@@ -199,9 +166,6 @@
           },
           "regeneration_minutes": 60,
           "repeat_variation": {
-            "defense_hp_percent": 10,
-            "defense_damage_percent": 12,
-            "attack_cooldown_jitter_ticks": 1,
             "loot_percent": 10
           }
         },
@@ -218,9 +182,6 @@
           "sections": [
             {
               "id": "b3.entry",
-              "defense_hp": 110,
-              "defense_damage": 6,
-              "defense_attack_cooldown_ticks": 16,
               "loot": {
                 "stone": 4,
                 "iron": 6,
@@ -230,9 +191,6 @@
             },
             {
               "id": "b3.sanctum",
-              "defense_hp": 135,
-              "defense_damage": 7,
-              "defense_attack_cooldown_ticks": 14,
               "loot": {
                 "stone": 0,
                 "iron": 8,
@@ -242,9 +200,6 @@
             },
             {
               "id": "b3.elite",
-              "defense_hp": 155,
-              "defense_damage": 8,
-              "defense_attack_cooldown_ticks": 13,
               "loot": {
                 "stone": 0,
                 "iron": 10,
@@ -254,9 +209,6 @@
             },
             {
               "id": "b3.core",
-              "defense_hp": 180,
-              "defense_damage": 9,
-              "defense_attack_cooldown_ticks": 12,
               "loot": {
                 "stone": 0,
                 "iron": 12,
@@ -279,9 +231,6 @@
           },
           "regeneration_minutes": 120,
           "repeat_variation": {
-            "defense_hp_percent": 12,
-            "defense_damage_percent": 15,
-            "attack_cooldown_jitter_ticks": 2,
             "loot_percent": 10
           }
         }
@@ -309,9 +258,6 @@
           "sections": [
             {
               "id": "c1.steps",
-              "defense_hp": 100,
-              "defense_damage": 7,
-              "defense_attack_cooldown_ticks": 16,
               "loot": {
                 "stone": 0,
                 "iron": 2,
@@ -321,9 +267,6 @@
             },
             {
               "id": "c1.nave",
-              "defense_hp": 120,
-              "defense_damage": 8,
-              "defense_attack_cooldown_ticks": 15,
               "loot": {
                 "stone": 0,
                 "iron": 3,
@@ -333,9 +276,6 @@
             },
             {
               "id": "c1.archive",
-              "defense_hp": 140,
-              "defense_damage": 8,
-              "defense_attack_cooldown_ticks": 14,
               "loot": {
                 "stone": 0,
                 "iron": 4,
@@ -345,9 +285,6 @@
             },
             {
               "id": "c1.altar",
-              "defense_hp": 155,
-              "defense_damage": 9,
-              "defense_attack_cooldown_ticks": 14,
               "loot": {
                 "stone": 0,
                 "iron": 5,
@@ -370,9 +307,6 @@
           },
           "regeneration_minutes": 45,
           "repeat_variation": {
-            "defense_hp_percent": 10,
-            "defense_damage_percent": 12,
-            "attack_cooldown_jitter_ticks": 1,
             "loot_percent": 10
           }
         },
@@ -388,9 +322,6 @@
           "sections": [
             {
               "id": "c2.entry",
-              "defense_hp": 130,
-              "defense_damage": 8,
-              "defense_attack_cooldown_ticks": 14,
               "loot": {
                 "stone": 0,
                 "iron": 2,
@@ -400,9 +331,6 @@
             },
             {
               "id": "c2.cloister",
-              "defense_hp": 150,
-              "defense_damage": 9,
-              "defense_attack_cooldown_ticks": 13,
               "loot": {
                 "stone": 0,
                 "iron": 3,
@@ -412,9 +340,6 @@
             },
             {
               "id": "c2.guard",
-              "defense_hp": 175,
-              "defense_damage": 10,
-              "defense_attack_cooldown_ticks": 13,
               "loot": {
                 "stone": 0,
                 "iron": 4,
@@ -424,9 +349,6 @@
             },
             {
               "id": "c2.choir",
-              "defense_hp": 200,
-              "defense_damage": 11,
-              "defense_attack_cooldown_ticks": 12,
               "loot": {
                 "stone": 0,
                 "iron": 5,
@@ -449,9 +371,6 @@
           },
           "regeneration_minutes": 90,
           "repeat_variation": {
-            "defense_hp_percent": 12,
-            "defense_damage_percent": 15,
-            "attack_cooldown_jitter_ticks": 2,
             "loot_percent": 12
           }
         },
@@ -468,9 +387,6 @@
           "sections": [
             {
               "id": "c3.entry",
-              "defense_hp": 150,
-              "defense_damage": 14,
-              "defense_attack_cooldown_ticks": 13,
               "loot": {
                 "stone": 0,
                 "iron": 2,
@@ -480,9 +396,6 @@
             },
             {
               "id": "c3.sanctum",
-              "defense_hp": 180,
-              "defense_damage": 16,
-              "defense_attack_cooldown_ticks": 12,
               "loot": {
                 "stone": 0,
                 "iron": 3,
@@ -492,9 +405,6 @@
             },
             {
               "id": "c3.reliquary",
-              "defense_hp": 210,
-              "defense_damage": 18,
-              "defense_attack_cooldown_ticks": 12,
               "loot": {
                 "stone": 0,
                 "iron": 4,
@@ -504,9 +414,6 @@
             },
             {
               "id": "c3.core",
-              "defense_hp": 250,
-              "defense_damage": 21,
-              "defense_attack_cooldown_ticks": 11,
               "loot": {
                 "stone": 0,
                 "iron": 5,
@@ -529,9 +436,6 @@
           },
           "regeneration_minutes": 150,
           "repeat_variation": {
-            "defense_hp_percent": 15,
-            "defense_damage_percent": 18,
-            "attack_cooldown_jitter_ticks": 2,
             "loot_percent": 12
           }
         }
@@ -561,9 +465,6 @@
           "sections": [
             {
               "id": "f1.gate",
-              "defense_hp": 170,
-              "defense_damage": 9,
-              "defense_attack_cooldown_ticks": 14,
               "loot": {
                 "stone": 0,
                 "iron": 5,
@@ -573,9 +474,6 @@
             },
             {
               "id": "f1.smelter",
-              "defense_hp": 190,
-              "defense_damage": 10,
-              "defense_attack_cooldown_ticks": 14,
               "loot": {
                 "stone": 0,
                 "iron": 6,
@@ -585,9 +483,6 @@
             },
             {
               "id": "f1.gallery",
-              "defense_hp": 215,
-              "defense_damage": 11,
-              "defense_attack_cooldown_ticks": 13,
               "loot": {
                 "stone": 0,
                 "iron": 7,
@@ -597,9 +492,6 @@
             },
             {
               "id": "f1.store",
-              "defense_hp": 240,
-              "defense_damage": 12,
-              "defense_attack_cooldown_ticks": 13,
               "loot": {
                 "stone": 0,
                 "iron": 9,
@@ -622,9 +514,6 @@
           },
           "regeneration_minutes": 50,
           "repeat_variation": {
-            "defense_hp_percent": 10,
-            "defense_damage_percent": 12,
-            "attack_cooldown_jitter_ticks": 1,
             "loot_percent": 12
           }
         },
@@ -641,9 +530,6 @@
           "sections": [
             {
               "id": "f2.entry",
-              "defense_hp": 200,
-              "defense_damage": 11,
-              "defense_attack_cooldown_ticks": 14,
               "loot": {
                 "stone": 0,
                 "iron": 5,
@@ -653,9 +539,6 @@
             },
             {
               "id": "f2.crossfire",
-              "defense_hp": 230,
-              "defense_damage": 12,
-              "defense_attack_cooldown_ticks": 13,
               "loot": {
                 "stone": 0,
                 "iron": 7,
@@ -665,9 +548,6 @@
             },
             {
               "id": "f2.guard",
-              "defense_hp": 260,
-              "defense_damage": 13,
-              "defense_attack_cooldown_ticks": 12,
               "loot": {
                 "stone": 0,
                 "iron": 8,
@@ -677,9 +557,6 @@
             },
             {
               "id": "f2.overseer",
-              "defense_hp": 290,
-              "defense_damage": 14,
-              "defense_attack_cooldown_ticks": 12,
               "loot": {
                 "stone": 0,
                 "iron": 10,
@@ -702,9 +579,6 @@
           },
           "regeneration_minutes": 100,
           "repeat_variation": {
-            "defense_hp_percent": 12,
-            "defense_damage_percent": 14,
-            "attack_cooldown_jitter_ticks": 2,
             "loot_percent": 12
           }
         },
@@ -721,9 +595,6 @@
           "sections": [
             {
               "id": "f3.approach",
-              "defense_hp": 230,
-              "defense_damage": 13,
-              "defense_attack_cooldown_ticks": 13,
               "loot": {
                 "stone": 0,
                 "iron": 6,
@@ -733,9 +604,6 @@
             },
             {
               "id": "f3.furnace",
-              "defense_hp": 270,
-              "defense_damage": 14,
-              "defense_attack_cooldown_ticks": 12,
               "loot": {
                 "stone": 0,
                 "iron": 8,
@@ -745,9 +613,6 @@
             },
             {
               "id": "f3.elite",
-              "defense_hp": 310,
-              "defense_damage": 15,
-              "defense_attack_cooldown_ticks": 12,
               "loot": {
                 "stone": 0,
                 "iron": 10,
@@ -757,9 +622,6 @@
             },
             {
               "id": "f3.core",
-              "defense_hp": 350,
-              "defense_damage": 16,
-              "defense_attack_cooldown_ticks": 11,
               "loot": {
                 "stone": 0,
                 "iron": 12,
@@ -782,9 +644,6 @@
           },
           "regeneration_minutes": 180,
           "repeat_variation": {
-            "defense_hp_percent": 14,
-            "defense_damage_percent": 16,
-            "attack_cooldown_jitter_ticks": 2,
             "loot_percent": 14
           }
         }
@@ -814,9 +673,6 @@
           "sections": [
             {
               "id": "r1.threshold",
-              "defense_hp": 230,
-              "defense_damage": 13,
-              "defense_attack_cooldown_ticks": 13,
               "loot": {
                 "stone": 0,
                 "iron": 2,
@@ -826,9 +682,6 @@
             },
             {
               "id": "r1.sigil",
-              "defense_hp": 255,
-              "defense_damage": 14,
-              "defense_attack_cooldown_ticks": 12,
               "loot": {
                 "stone": 0,
                 "iron": 2,
@@ -838,9 +691,6 @@
             },
             {
               "id": "r1.archive",
-              "defense_hp": 280,
-              "defense_damage": 15,
-              "defense_attack_cooldown_ticks": 12,
               "loot": {
                 "stone": 0,
                 "iron": 3,
@@ -850,9 +700,6 @@
             },
             {
               "id": "r1.vault",
-              "defense_hp": 310,
-              "defense_damage": 16,
-              "defense_attack_cooldown_ticks": 11,
               "loot": {
                 "stone": 0,
                 "iron": 3,
@@ -875,9 +722,6 @@
           },
           "regeneration_minutes": 70,
           "repeat_variation": {
-            "defense_hp_percent": 12,
-            "defense_damage_percent": 14,
-            "attack_cooldown_jitter_ticks": 2,
             "loot_percent": 14
           }
         },
@@ -894,9 +738,6 @@
           "sections": [
             {
               "id": "r2.entry",
-              "defense_hp": 260,
-              "defense_damage": 15,
-              "defense_attack_cooldown_ticks": 12,
               "loot": {
                 "stone": 0,
                 "iron": 2,
@@ -906,9 +747,6 @@
             },
             {
               "id": "r2.ward",
-              "defense_hp": 295,
-              "defense_damage": 16,
-              "defense_attack_cooldown_ticks": 12,
               "loot": {
                 "stone": 0,
                 "iron": 3,
@@ -918,9 +756,6 @@
             },
             {
               "id": "r2.guardian",
-              "defense_hp": 330,
-              "defense_damage": 17,
-              "defense_attack_cooldown_ticks": 11,
               "loot": {
                 "stone": 0,
                 "iron": 3,
@@ -930,9 +765,6 @@
             },
             {
               "id": "r2.keeper",
-              "defense_hp": 370,
-              "defense_damage": 18,
-              "defense_attack_cooldown_ticks": 11,
               "loot": {
                 "stone": 0,
                 "iron": 4,
@@ -955,9 +787,6 @@
           },
           "regeneration_minutes": 130,
           "repeat_variation": {
-            "defense_hp_percent": 14,
-            "defense_damage_percent": 16,
-            "attack_cooldown_jitter_ticks": 2,
             "loot_percent": 15
           }
         },
@@ -974,9 +803,6 @@
           "sections": [
             {
               "id": "r3.descent",
-              "defense_hp": 300,
-              "defense_damage": 17,
-              "defense_attack_cooldown_ticks": 12,
               "loot": {
                 "stone": 0,
                 "iron": 3,
@@ -986,9 +812,6 @@
             },
             {
               "id": "r3.seal",
-              "defense_hp": 340,
-              "defense_damage": 18,
-              "defense_attack_cooldown_ticks": 11,
               "loot": {
                 "stone": 0,
                 "iron": 3,
@@ -998,9 +821,6 @@
             },
             {
               "id": "r3.sanctum",
-              "defense_hp": 385,
-              "defense_damage": 19,
-              "defense_attack_cooldown_ticks": 11,
               "loot": {
                 "stone": 0,
                 "iron": 4,
@@ -1010,9 +830,6 @@
             },
             {
               "id": "r3.core",
-              "defense_hp": 430,
-              "defense_damage": 20,
-              "defense_attack_cooldown_ticks": 10,
               "loot": {
                 "stone": 0,
                 "iron": 5,
@@ -1035,9 +852,6 @@
           },
           "regeneration_minutes": 210,
           "repeat_variation": {
-            "defense_hp_percent": 16,
-            "defense_damage_percent": 18,
-            "attack_cooldown_jitter_ticks": 3,
             "loot_percent": 16
           }
         }

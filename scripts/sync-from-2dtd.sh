@@ -84,9 +84,11 @@ require_path() {
 require_path "$SOURCE_ROOT/src/DungeonDefense.Core"
 require_path "$SOURCE_ROOT/src/DungeonDefense.Contracts"
 require_path "$SOURCE_ROOT/src/DungeonDefense.Application"
+require_path "$SOURCE_ROOT/src/DungeonDefense.Infrastructure"
 require_path "$SOURCE_ROOT/src/DungeonDefense.Presentation"
 require_path "$SOURCE_ROOT/content/vertical-slice.json"
 require_path "$SOURCE_ROOT/content/invasion-vertical-slice.json"
+require_path "$SOURCE_ROOT/content/invasion-maps.json"
 require_path "$SOURCE_ROOT/godot/assets/production"
 
 SOURCE_REVISION="$(git -C "$SOURCE_ROOT" rev-parse HEAD)"
@@ -94,9 +96,11 @@ SNAPSHOT_PATHS=(
   src/DungeonDefense.Core
   src/DungeonDefense.Contracts
   src/DungeonDefense.Application
+  src/DungeonDefense.Infrastructure
   src/DungeonDefense.Presentation
   content/vertical-slice.json
   content/invasion-vertical-slice.json
+  content/invasion-maps.json
   godot/assets/production
 )
 SOURCE_STATUS="$(git -C "$SOURCE_ROOT" status --porcelain --untracked-files=normal -- "${SNAPSHOT_PATHS[@]}")"
@@ -116,7 +120,7 @@ if [[ "$SOURCE_DIRTY" -eq 1 && "$ALLOW_DIRTY" -ne 1 ]]; then
   exit 3
 fi
 
-RSYNC_COMMON=(-a --delete --exclude bin --exclude obj --exclude .DS_Store --exclude '*.import')
+RSYNC_COMMON=(-a --omit-dir-times --delete --exclude bin --exclude obj --exclude .DS_Store --exclude '*.import')
 if [[ "$DRY_RUN" -eq 1 || "$VERIFY_ONLY" -eq 1 ]]; then
   RSYNC_COMMON+=(--dry-run --itemize-changes)
 fi
@@ -157,6 +161,7 @@ PROJECTS=(
   DungeonDefense.Core
   DungeonDefense.Contracts
   DungeonDefense.Application
+  DungeonDefense.Infrastructure
   DungeonDefense.Presentation
 )
 
@@ -170,6 +175,9 @@ sync_file \
 sync_file \
   "$SOURCE_ROOT/content/invasion-vertical-slice.json" \
   "$WEB_ROOT/src/DungeonDefense.Web/wwwroot/content/invasion-vertical-slice.json"
+sync_file \
+  "$SOURCE_ROOT/content/invasion-maps.json" \
+  "$WEB_ROOT/src/DungeonDefense.Web/wwwroot/content/invasion-maps.json"
 
 sync_tree \
   "$SOURCE_ROOT/godot/assets/production" \
@@ -179,7 +187,7 @@ if [[ "$VERIFY_ONLY" -eq 1 ]]; then
   # A second rsync pass without modifying output lets us fail when any delta exists.
   VERIFY_OUTPUT="$({
     for project in "${PROJECTS[@]}"; do
-      rsync -a --delete --exclude bin --exclude obj --exclude .DS_Store --exclude '*.import' --dry-run --itemize-changes \
+      rsync -a --omit-dir-times --delete --exclude bin --exclude obj --exclude .DS_Store --exclude '*.import' --dry-run --itemize-changes \
         "$SOURCE_ROOT/src/$project/" "$WEB_ROOT/src/$project/"
     done
     if ! cmp -s "$SOURCE_ROOT/content/vertical-slice.json" "$WEB_ROOT/src/DungeonDefense.Web/wwwroot/content/vertical-slice.json"; then
@@ -188,7 +196,10 @@ if [[ "$VERIFY_ONLY" -eq 1 ]]; then
     if ! cmp -s "$SOURCE_ROOT/content/invasion-vertical-slice.json" "$WEB_ROOT/src/DungeonDefense.Web/wwwroot/content/invasion-vertical-slice.json"; then
       echo "content/invasion-vertical-slice.json differs"
     fi
-    rsync -a --delete --exclude .DS_Store --exclude '*.import' --dry-run --itemize-changes \
+    if ! cmp -s "$SOURCE_ROOT/content/invasion-maps.json" "$WEB_ROOT/src/DungeonDefense.Web/wwwroot/content/invasion-maps.json"; then
+      echo "content/invasion-maps.json differs"
+    fi
+    rsync -a --omit-dir-times --delete --exclude .DS_Store --exclude '*.import' --dry-run --itemize-changes \
       "$SOURCE_ROOT/godot/assets/production/" "$WEB_ROOT/src/DungeonDefense.Web/wwwroot/assets/production/"
   } | sed '/^[[:space:]]*$/d')"
 
@@ -228,8 +239,8 @@ Source snapshot paths dirty: $DIRTY_LABEL
 Source repository has unrelated changes: $( [[ "$REPOSITORY_DIRTY" -eq 1 ]] && echo yes || echo no )
 Reproducible from revision alone: $REPRODUCIBLE_LABEL
 Snapshot date: $(date +%Y-%m-%d)
-Shared projects: DungeonDefense.Core, DungeonDefense.Contracts, DungeonDefense.Application, DungeonDefense.Presentation
-Content: content/vertical-slice.json, content/invasion-vertical-slice.json
+Shared projects: DungeonDefense.Core, DungeonDefense.Contracts, DungeonDefense.Application, DungeonDefense.Infrastructure, DungeonDefense.Presentation
+Content: content/vertical-slice.json, content/invasion-vertical-slice.json, content/invasion-maps.json
 Art: godot/assets/production
 EOF
 

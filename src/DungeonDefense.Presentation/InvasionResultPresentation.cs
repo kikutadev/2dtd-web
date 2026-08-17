@@ -25,7 +25,7 @@ public static class InvasionResultPresentation
         var survivors = simulation.Units.Count(x => x.Alive);
         var reachedSection = simulation.Outcome == InvasionOutcome.Success
             ? simulation.Floor.Sections.Count
-            : Math.Min(simulation.SectionIndex + 1, simulation.Floor.Sections.Count);
+            : Math.Min(simulation.CurrentSectionIndex + 1, simulation.Floor.Sections.Count);
         var lessonKey = simulation.Outcome switch
         {
             InvasionOutcome.Success => "invasion.result.lesson.success",
@@ -38,7 +38,7 @@ public static class InvasionResultPresentation
             locationId,
             simulation.Floor.Id,
             simulation.Floor.Depth,
-            simulation.Floor.Objective,
+            simulation.Floor.Objective.Kind,
             survivors,
             totalUnits,
             simulation.DefeatedCount,

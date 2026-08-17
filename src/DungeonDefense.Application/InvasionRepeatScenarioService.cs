@@ -15,39 +15,52 @@ public static class InvasionRepeatScenarioService
     public static InvasionResolvedScenario Resolve(InvasionFloorDefinition baseFloor, bool isFirstClear, int seed)
     {
         ArgumentNullException.ThrowIfNull(baseFloor);
-        if (isFirstClear || baseFloor.RepeatVariation == default)
+        var variation = baseFloor.RepeatVariation.Validate();
+        if (isFirstClear || variation.LootPercent == 0)
             return new(baseFloor, false, Digest(baseFloor));
 
-        var variation = baseFloor.RepeatVariation.Validate();
         var sections = baseFloor.Sections.Select(section => new InvasionSectionDefinition(
             section.Id,
-            Scale(section.DefenseHp, Delta(seed, baseFloor.Id, section.Id, "hp", variation.DefenseHpPercent), minimum: 1),
-            Scale(section.DefenseDamage, Delta(seed, baseFloor.Id, section.Id, "damage", variation.DefenseDamagePercent), minimum: 0),
-            Math.Max(1, checked(section.DefenseAttackCooldownTicks + Delta(seed, baseFloor.Id, section.Id, "cooldown", variation.AttackCooldownJitterTicks))),
+            section.Cells,
+            section.Checkpoint,
             ScaleLoot(section.Loot, Delta(seed, baseFloor.Id, section.Id, "loot", variation.LootPercent)))).ToArray();
-
-        var floor = baseFloor with { Sections = sections };
+        var floor = new InvasionFloorDefinition(
+            baseFloor.Id,
+            baseFloor.Depth,
+            baseFloor.ThreatTags,
+            baseFloor.Board,
+            sections,
+            baseFloor.Objective,
+            baseFloor.FirstClearReward,
+            baseFloor.RepeatReward,
+            baseFloor.RegenerationMinutes,
+            baseFloor.RepeatVariation);
         return new(floor, true, Digest(floor));
     }
 
     public static string Digest(InvasionFloorDefinition floor)
     {
         var builder = new StringBuilder();
-        builder.Append(floor.Id).Append('|').Append(floor.Depth).Append('|').Append(floor.Objective).Append('\n');
+        builder.Append(floor.Id).Append('|').Append(floor.Depth).Append('|').Append(floor.Objective.Kind).Append('|')
+            .Append(floor.Objective.Position).Append('|').Append(floor.Objective.TargetInstanceId).Append('|')
+            .Append(floor.Objective.StructureMaxHp).Append('|').Append(DungeonStateDigest.Compute(floor.Board)).Append('\n');
         foreach (var section in floor.Sections)
-            builder.Append(section.Id).Append('|').Append(section.DefenseHp).Append('|').Append(section.DefenseDamage).Append('|')
-                .Append(section.DefenseAttackCooldownTicks).Append('|').Append(section.Loot).Append('\n');
+        {
+            builder.Append(section.Id).Append('|').Append(section.Checkpoint).Append('|').Append(section.Loot).Append('|');
+            foreach (var cell in section.Cells.OrderBy(x => x.Y).ThenBy(x => x.X)) builder.Append(cell).Append(',');
+            builder.Append('\n');
+        }
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString()))).ToLowerInvariant();
     }
 
-    private static int Scale(int value, int percentDelta, int minimum)
-        => Math.Max(minimum, checked(value + value * percentDelta / 100));
+    private static int Scale(int value, int percentDelta)
+        => Math.Max(0, checked(value + value * percentDelta / 100));
 
     private static ResourceBundle ScaleLoot(ResourceBundle value, int percentDelta)
         => new(
-            Scale(value.Stone, percentDelta, 0),
-            Scale(value.Iron, percentDelta, 0),
-            Scale(value.Soul, percentDelta, 0),
+            Scale(value.Stone, percentDelta),
+            Scale(value.Iron, percentDelta),
+            Scale(value.Soul, percentDelta),
             value.Relic);
 
     private static int Delta(int seed, string floorId, string sectionId, string channel, int magnitude)

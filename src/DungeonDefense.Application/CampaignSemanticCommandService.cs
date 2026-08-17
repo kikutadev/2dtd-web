@@ -26,20 +26,18 @@ public static class CampaignSemanticCommandService
         CampaignGameSession campaign,
         SemanticCommand command,
         InvasionContent invasionContent,
-        IReadOnlyDictionary<string, UnitDefinition> unitDefinitions,
         int defaultSeed = 0)
     {
         ArgumentNullException.ThrowIfNull(campaign);
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(invasionContent);
-        ArgumentNullException.ThrowIfNull(unitDefinitions);
 
         return command switch
         {
             CompleteResearchCommand research => FromAction(campaign.CompleteResearch(research.ResearchId)),
             ObserveRealtimeCommand realtime => ExecuteObserveRealtime(campaign, realtime),
             CollectProductionCommand => CampaignSemanticCommandResult.Ok(collectedProduction: campaign.CollectProduction()),
-            StartInvasionCommand invasion => ExecuteStartInvasion(campaign, invasion, invasionContent, unitDefinitions, defaultSeed),
+            StartInvasionCommand invasion => ExecuteStartInvasion(campaign, invasion, invasionContent, defaultSeed),
             DeployGroupCommand deploy => ExecuteDeploy(campaign, deploy),
             CastInvasionSpellCommand spell => ExecuteInvasionSpell(campaign, spell),
             RetreatInvasionCommand => ExecuteRetreat(campaign),
@@ -59,7 +57,6 @@ public static class CampaignSemanticCommandService
         CampaignGameSession campaign,
         StartInvasionCommand command,
         InvasionContent invasionContent,
-        IReadOnlyDictionary<string, UnitDefinition> unitDefinitions,
         int defaultSeed)
     {
         var formation = command.Formation
@@ -67,7 +64,6 @@ public static class CampaignSemanticCommandService
             .ToArray();
         campaign.StartInvasion(
             invasionContent,
-            unitDefinitions,
             command.LocationId,
             command.FloorId,
             formation,

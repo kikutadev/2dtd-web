@@ -33,18 +33,46 @@ public sealed record CampaignRealtimeFile(
     [property: JsonPropertyName("production")] CampaignProductionAccumulatorFile Production,
     [property: JsonPropertyName("invasion_regeneration")] IReadOnlyList<CampaignInvasionRegenerationFile> InvasionRegeneration);
 
+public sealed record CampaignGridPointFile(
+    [property: JsonPropertyName("x")] int X,
+    [property: JsonPropertyName("y")] int Y);
+
+public sealed record CampaignActiveInvasionStatusFile(
+    [property: JsonPropertyName("kind")] string Kind,
+    [property: JsonPropertyName("strength")] int Strength,
+    [property: JsonPropertyName("remaining_ticks")] int RemainingTicks);
+
 public sealed record CampaignActiveInvasionUnitFile(
     [property: JsonPropertyName("entity_id")] string EntityId,
-    [property: JsonPropertyName("unit_id")] string UnitId,
+    [property: JsonPropertyName("definition_id")] string DefinitionId,
     [property: JsonPropertyName("formation_index")] int FormationIndex,
+    [property: JsonPropertyName("position")] CampaignGridPointFile Position,
     [property: JsonPropertyName("hp")] int Hp,
     [property: JsonPropertyName("shield")] int Shield,
-    [property: JsonPropertyName("attack_cooldown_remaining")] int AttackCooldownRemaining,
-    [property: JsonPropertyName("deployed")] bool Deployed,
-    [property: JsonPropertyName("archetype")] string? Archetype = null,
-    [property: JsonPropertyName("section_damage_percent")] int? SectionDamagePercent = null,
-    [property: JsonPropertyName("incoming_damage_percent")] int? IncomingDamagePercent = null,
-    [property: JsonPropertyName("attack_cooldown_percent")] int? AttackCooldownPercent = null);
+    [property: JsonPropertyName("route_progress_units")] long RouteProgressUnits,
+    [property: JsonPropertyName("path_index")] int PathIndex,
+    [property: JsonPropertyName("move_remainder")] int MoveRemainder,
+    [property: JsonPropertyName("next_move_tick")] int NextMoveTick,
+    [property: JsonPropertyName("next_attack_tick")] int NextAttackTick,
+    [property: JsonPropertyName("deployment_requested")] bool DeploymentRequested,
+    [property: JsonPropertyName("admitted")] bool Admitted,
+    [property: JsonPropertyName("target_entity_id")] string? TargetEntityId,
+    [property: JsonPropertyName("archetype")] string Archetype,
+    [property: JsonPropertyName("statuses")] IReadOnlyList<CampaignActiveInvasionStatusFile> Statuses);
+
+public sealed record CampaignActiveInvasionGuardFile(
+    [property: JsonPropertyName("entity_id")] string EntityId,
+    [property: JsonPropertyName("definition_id")] string DefinitionId,
+    [property: JsonPropertyName("position")] CampaignGridPointFile Position,
+    [property: JsonPropertyName("hp")] int Hp,
+    [property: JsonPropertyName("next_move_tick")] int NextMoveTick,
+    [property: JsonPropertyName("next_attack_tick")] int NextAttackTick,
+    [property: JsonPropertyName("target_entity_id")] string? TargetEntityId,
+    [property: JsonPropertyName("statuses")] IReadOnlyList<CampaignActiveInvasionStatusFile> Statuses);
+
+public sealed record CampaignActiveInvasionCooldownFile(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("ready_tick")] int ReadyTick);
 
 public sealed record CampaignActiveInvasionSpellCooldownFile(
     [property: JsonPropertyName("spell_id")] string SpellId,
@@ -55,28 +83,34 @@ public sealed record CampaignActiveInvasionEventFile(
     [property: JsonPropertyName("type")] string Type,
     [property: JsonPropertyName("actor_id")] string ActorId,
     [property: JsonPropertyName("target_id")] string? TargetId,
+    [property: JsonPropertyName("position")] CampaignGridPointFile? Position,
     [property: JsonPropertyName("amount")] int Amount,
-    [property: JsonPropertyName("detail")] string? Detail);
+    [property: JsonPropertyName("detail")] string? Detail,
+    [property: JsonPropertyName("source_position")] CampaignGridPointFile? SourcePosition,
+    [property: JsonPropertyName("source_definition_id")] string? SourceDefinitionId);
 
 public sealed record CampaignActiveInvasionFile(
     [property: JsonPropertyName("content_version")] string ContentVersion,
     [property: JsonPropertyName("location_id")] string LocationId,
     [property: JsonPropertyName("floor_id")] string FloorId,
+    [property: JsonPropertyName("map_digest")] string MapDigest,
     [property: JsonPropertyName("seed")] int Seed,
     [property: JsonPropertyName("tick")] int Tick,
     [property: JsonPropertyName("mp")] int Mp,
     [property: JsonPropertyName("used_deployment_capacity")] int UsedDeploymentCapacity,
-    [property: JsonPropertyName("section_index")] int SectionIndex,
-    [property: JsonPropertyName("section_defense_hp")] int SectionDefenseHp,
-    [property: JsonPropertyName("section_attack_cooldown")] int SectionAttackCooldown,
     [property: JsonPropertyName("retreat_remaining_ticks")] int? RetreatRemainingTicks,
     [property: JsonPropertyName("outcome")] string Outcome,
     [property: JsonPropertyName("secured_loot")] CampaignResourceFile SecuredLoot,
+    [property: JsonPropertyName("objective_structure_hp")] int ObjectiveStructureHp,
+    [property: JsonPropertyName("cleared_section_ids")] IReadOnlyList<string> ClearedSectionIds,
     [property: JsonPropertyName("units")] IReadOnlyList<CampaignActiveInvasionUnitFile> Units,
+    [property: JsonPropertyName("guards")] IReadOnlyList<CampaignActiveInvasionGuardFile> Guards,
+    [property: JsonPropertyName("trap_cooldowns")] IReadOnlyList<CampaignActiveInvasionCooldownFile> TrapCooldowns,
+    [property: JsonPropertyName("facility_cooldowns")] IReadOnlyList<CampaignActiveInvasionCooldownFile> FacilityCooldowns,
     [property: JsonPropertyName("spell_cooldowns")] IReadOnlyList<CampaignActiveInvasionSpellCooldownFile> SpellCooldowns,
     [property: JsonPropertyName("events")] IReadOnlyList<CampaignActiveInvasionEventFile> Events,
-    [property: JsonPropertyName("is_first_clear_scenario")] bool? IsFirstClearScenario = null,
-    [property: JsonPropertyName("is_resolved")] bool? IsResolved = null);
+    [property: JsonPropertyName("is_first_clear_scenario")] bool IsFirstClearScenario,
+    [property: JsonPropertyName("is_resolved")] bool IsResolved);
 
 public sealed record CampaignClearedDungeonFile(
     [property: JsonPropertyName("archive_id")] string ArchiveId,

@@ -316,7 +316,7 @@ public static class FirstRegionJourneyAnalyzer
             new InvasionFormationEntry("monster.skeleton_warrior", 3),
             new InvasionFormationEntry("monster.skeleton_archer", 3),
         };
-        var simulation = campaign.StartInvasion(content, unitDefinitions, locationId, floorId, formation, seed);
+        var simulation = campaign.StartInvasion(content, locationId, floorId, formation, seed);
         simulation.DeployAllRemaining();
         var guard = 0;
         while (simulation.Outcome == InvasionOutcome.Running && guard++ < 20_000)
@@ -324,7 +324,7 @@ public static class FirstRegionJourneyAnalyzer
             if (simulation.Mp >= 35 && simulation.SpellCooldownRemaining("invasion.spell.ward") == 0)
                 simulation.CastSupportSpell("invasion.spell.ward");
             if (simulation.Mp >= 25 && simulation.SpellCooldownRemaining("invasion.spell.mend") == 0
-                && simulation.Units.Any(x => x.Alive && x.Deployed && x.Hp < x.Definition.MaxHp))
+                && simulation.Units.Any(x => x.Alive && x.Admitted && x.Hp < x.MaxHp))
                 simulation.CastSupportSpell("invasion.spell.mend");
             simulation.Step();
         }

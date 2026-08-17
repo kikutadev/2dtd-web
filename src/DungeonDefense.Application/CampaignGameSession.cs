@@ -53,7 +53,6 @@ public sealed class CampaignGameSession
         CampaignSaveFile file,
         CampaignProgressionContent progression,
         InvasionContent? invasionContent = null,
-        IReadOnlyDictionary<string, UnitDefinition>? unitDefinitions = null,
         RegionCampaignContent? regions = null)
     {
         var imported = CampaignSaveService.Import(file, progression.ContentVersion);
@@ -62,11 +61,11 @@ public sealed class CampaignGameSession
         session.Defense.SelectFloor(imported.SelectedFloorId.Value);
         if (imported.ActiveInvasion is { } suspended)
         {
-            if (invasionContent is null || unitDefinitions is null)
-                throw new InvalidDataException("Campaign save contains an active invasion but invasion content/unit definitions were not supplied.");
+            if (invasionContent is null)
+                throw new InvalidDataException("Campaign save contains an active invasion but invasion content was not supplied.");
             var effectiveInvasionContent = session.EffectiveInvasionContent(invasionContent);
             var scenario = InvasionCampaignService.ResolveScenario(session._state, effectiveInvasionContent, suspended.LocationId, suspended.Snapshot.FloorId, suspended.Snapshot.Seed, suspended.IsFirstClearScenario);
-            session.ActiveInvasion = InvasionSimulation.Restore(suspended.Snapshot, scenario.Floor, unitDefinitions, effectiveInvasionContent);
+            session.ActiveInvasion = InvasionSimulation.Restore(suspended.Snapshot, scenario.Floor, effectiveInvasionContent);
             session._activeInvasionContent = effectiveInvasionContent;
             session._activeInvasionLocationId = suspended.LocationId;
             session._activeInvasionFirstClearScenario = suspended.IsFirstClearScenario;
@@ -333,14 +332,12 @@ public sealed class CampaignGameSession
 
     public InvasionSimulation StartInvasion(
         InvasionContent content,
-        IReadOnlyDictionary<string, UnitDefinition> unitDefinitions,
         string locationId,
         string floorId,
         IReadOnlyList<InvasionFormationEntry> formation,
         int seed)
     {
         ArgumentNullException.ThrowIfNull(content);
-        ArgumentNullException.ThrowIfNull(unitDefinitions);
         if (Defense.ActiveDefense is not null) throw new InvalidOperationException("Cannot start invasion while a defense result is active.");
         if (ActiveInvasion is not null) throw new InvalidOperationException("Invasion already active.");
 
@@ -351,7 +348,7 @@ public sealed class CampaignGameSession
         if (!scout.IsAvailable) throw new InvalidOperationException($"Invasion floor is regenerating: {locationId}/{floorId} ({scout.RegenerationRemaining}).");
         var scenario = InvasionCampaignService.ResolveScenario(_state, effectiveContent, locationId, floorId, seed, firstClearScenario);
 
-        ActiveInvasion = new InvasionSimulation(scenario.Floor, unitDefinitions, formation, effectiveContent, seed);
+        ActiveInvasion = new InvasionSimulation(scenario.Floor, formation, effectiveContent, seed);
         _activeInvasionContent = effectiveContent;
         _activeInvasionLocationId = locationId;
         _activeInvasionFirstClearScenario = firstClearScenario;
