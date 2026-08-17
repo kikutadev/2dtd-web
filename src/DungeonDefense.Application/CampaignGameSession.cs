@@ -34,19 +34,26 @@ public sealed class CampaignGameSession
     private bool _activeInvasionResolved;
     private bool _activeInvasionFirstClearScenario = true;
     private bool _regionAdvancedOnDefenseResolution;
+    private readonly List<CampaignTransitionEvent> _transitions = [];
+    private readonly CampaignNarrativeProgress _narrativeProgress;
 
     public CampaignGameSession(
         CampaignState initialState,
         CampaignProgressionContent progression,
-        RegionCampaignContent? regions = null)
+        RegionCampaignContent? regions = null,
+        CampaignNarrativeProgress? narrativeProgress = null,
+        bool emitCampaignStartedTransition = true)
     {
         ArgumentNullException.ThrowIfNull(initialState);
         ArgumentNullException.ThrowIfNull(progression);
         _state = initialState.Clone();
         Progression = progression;
         Regions = regions;
+        _narrativeProgress = narrativeProgress?.Clone() ?? new CampaignNarrativeProgress();
         Defense = new DefenseGameSession(_state.Dungeon);
-        RefreshAutomaticUnlocks();
+        RefreshAutomaticUnlocks(emitTransitions: false);
+        if (emitCampaignStartedTransition)
+            Emit(new CampaignTransitionEvent(CampaignTransitionKind.CampaignStarted, Day: _state.Day, RegionId: _state.RegionId));
     }
 
     public static CampaignGameSession FromSave(
@@ -57,7 +64,7 @@ public sealed class CampaignGameSession
     {
         var imported = CampaignSaveService.Import(file, progression.ContentVersion);
         ValidateSaveContentReferences(imported.State, progression, invasionContent, regions);
-        var session = new CampaignGameSession(imported.State, progression, regions);
+        var session = new CampaignGameSession(imported.State, progression, regions, imported.NarrativeProgress, emitCampaignStartedTransition: false);
         session.Defense.SelectFloor(imported.SelectedFloorId.Value);
         if (imported.ActiveInvasion is { } suspended)
         {
@@ -182,6 +189,15 @@ public sealed class CampaignGameSession
     public InvasionSimulation? ActiveInvasion { get; private set; }
     public bool IsActiveInvasionResolved => ActiveInvasion is not null && _activeInvasionResolved;
     public CampaignState? AttemptSnapshot => _attemptSnapshot?.Clone();
+    public CampaignNarrativeProgress NarrativeProgress => _narrativeProgress.Clone();
+    public bool HasSeenNarrativeBeat(string beatId) => _narrativeProgress.HasSeen(beatId);
+    public bool MarkNarrativeBeatSeen(string beatId) => _narrativeProgress.MarkSeen(beatId);
+    public int TransitionCount => _transitions.Count;
+    public IReadOnlyList<CampaignTransitionEvent> TransitionsSince(int cursor)
+    {
+        if (cursor < 0 || cursor > _transitions.Count) throw new ArgumentOutOfRangeException(nameof(cursor));
+        return _transitions.Skip(cursor).ToArray();
+    }
 
     public CampaignSaveFile ExportSave()
     {
@@ -195,7 +211,7 @@ public sealed class CampaignGameSession
                 ActiveInvasion.CreateSnapshot(),
                 _activeInvasionFirstClearScenario,
                 _activeInvasionResolved);
-        return CampaignSaveService.Export(_state, Defense.DungeonEditor.SelectedFloorId, Progression.ContentVersion, suspended);
+        return CampaignSaveService.Export(_state, Defense.DungeonEditor.SelectedFloorId, Progression.ContentVersion, suspended, _narrativeProgress);
     }
 
     public DefenseAssaultProfile? EffectiveAssaultProfile(IReadOnlyList<DefenseAssaultProfile> assaultProfiles)
@@ -277,6 +293,7 @@ public sealed class CampaignGameSession
         SyncDungeonFromEditor();
         var reward = Progression.DefenseRewardForDay(_state.Day);
         _state.Grant(reward);
+        EmitRelicAcquired(reward.Relic);
         var clearedRegionId = _state.RegionId;
         var regionCleared = false;
         string? archiveId = null;
@@ -284,6 +301,7 @@ public sealed class CampaignGameSession
         if (Regions is not null && Regions.TryRegion(_state.RegionId, out var region) && completedDay == region.FinalDefenseDay)
         {
             regionCleared = true;
+            Emit(new CampaignTransitionEvent(CampaignTransitionKind.RegionCleared, SubjectId: region.Id, Day: completedDay, RegionId: region.Id));
             var archive = _state.ArchiveCurrentDungeon(region.FinalAssaultProfileId);
             archiveId = archive.ArchiveId;
             if (region.NextRegionId is { } nextRegionId)
@@ -291,16 +309,19 @@ public sealed class CampaignGameSession
                 var nextRegion = Regions.Region(nextRegionId);
                 var board = DungeonBoardProfiles.Resolve(nextRegion.StartingBoardProfileId);
                 _state.BeginRegion(nextRegion.Id, PlayerDungeonState.FromSingleFloor(board.CreateBase(), board.Id));
+                Emit(new CampaignTransitionEvent(CampaignTransitionKind.RegionEntered, SubjectId: nextRegion.Id, Day: _state.Day, RegionId: nextRegion.Id));
                 _regionAdvancedOnDefenseResolution = true;
             }
             else
             {
                 _state.AdvanceDay();
+                EmitDayAdvanced();
             }
         }
         else
         {
             _state.AdvanceDay();
+            EmitDayAdvanced();
         }
         var unlocked = RefreshAutomaticUnlocks();
         return new DefenseResolution(
@@ -379,7 +400,25 @@ public sealed class CampaignGameSession
         var locationId = _activeInvasionLocationId ?? throw new InvalidOperationException("Invasion location context is missing.");
 
         _activeInvasionResolved = true;
-        return InvasionCampaignService.ApplyOutcome(_state, content, locationId, simulation);
+        var resolution = InvasionCampaignService.ApplyOutcome(_state, content, locationId, simulation);
+        if (resolution.Outcome == InvasionOutcome.Success && resolution.FirstClear)
+        {
+            Emit(new CampaignTransitionEvent(
+                CampaignTransitionKind.InvasionFirstCleared,
+                SubjectId: resolution.FloorId,
+                RelatedId: resolution.LocationId,
+                Day: _state.Day,
+                RegionId: _state.RegionId));
+            if (resolution.NewlyUnlockedFloorId is { } unlockedFloorId)
+                Emit(new CampaignTransitionEvent(
+                    CampaignTransitionKind.InvasionFloorUnlocked,
+                    SubjectId: unlockedFloorId,
+                    RelatedId: resolution.LocationId,
+                    Day: _state.Day,
+                    RegionId: _state.RegionId));
+        }
+        EmitRelicAcquired(resolution.GrantedLoot.Relic);
+        return resolution;
     }
 
     public void ReturnFromInvasion()
@@ -440,7 +479,9 @@ public sealed class CampaignGameSession
 
         _state.Spend(definition.Cost);
         _state.CompleteResearch(researchId);
-        foreach (var unlockId in definition.UnlockIds) _state.AddUnlock(unlockId);
+        Emit(new CampaignTransitionEvent(CampaignTransitionKind.ResearchCompleted, SubjectId: researchId, Day: _state.Day, RegionId: _state.RegionId));
+        foreach (var unlockId in definition.UnlockIds)
+            if (_state.AddUnlock(unlockId)) EmitUnlockGranted(unlockId);
         RefreshAutomaticUnlocks();
         return CampaignActionResult.Ok();
     }
@@ -457,7 +498,9 @@ public sealed class CampaignGameSession
 
         _state.Spend(definition.Cost);
         _state.SetSpeciesLevel(speciesId, nextLevel);
-        foreach (var unlockId in definition.UnlockIds) _state.AddUnlock(unlockId);
+        Emit(new CampaignTransitionEvent(CampaignTransitionKind.SpeciesUpgraded, SubjectId: speciesId, Day: _state.Day, RegionId: _state.RegionId, Amount: nextLevel));
+        foreach (var unlockId in definition.UnlockIds)
+            if (_state.AddUnlock(unlockId)) EmitUnlockGranted(unlockId);
         RefreshAutomaticUnlocks();
         return CampaignActionResult.Ok();
     }
@@ -481,7 +524,7 @@ public sealed class CampaignGameSession
         return CampaignActionResult.Ok();
     }
 
-    public IReadOnlyList<string> RefreshAutomaticUnlocks()
+    public IReadOnlyList<string> RefreshAutomaticUnlocks(bool emitTransitions = true)
     {
         var unlocked = new List<string>();
         foreach (var rule in Progression.UnlockRules.Where(x => x.Enabled))
@@ -489,9 +532,27 @@ public sealed class CampaignGameSession
             if (_state.HasUnlock(rule.UnlockId)) continue;
             if (_state.Day < rule.RequiredDay) continue;
             if (rule.RequiredResearchIds.Any(id => !_state.HasCompletedResearch(id))) continue;
-            if (_state.AddUnlock(rule.UnlockId)) unlocked.Add(rule.UnlockId);
+            if (_state.AddUnlock(rule.UnlockId))
+            {
+                unlocked.Add(rule.UnlockId);
+                if (emitTransitions) EmitUnlockGranted(rule.UnlockId);
+            }
         }
         return unlocked;
+    }
+
+    private void Emit(CampaignTransitionEvent value) => _transitions.Add(value);
+
+    private void EmitDayAdvanced()
+        => Emit(new CampaignTransitionEvent(CampaignTransitionKind.DayAdvanced, Day: _state.Day, RegionId: _state.RegionId));
+
+    private void EmitUnlockGranted(string unlockId)
+        => Emit(new CampaignTransitionEvent(CampaignTransitionKind.UnlockGranted, SubjectId: unlockId, Day: _state.Day, RegionId: _state.RegionId));
+
+    private void EmitRelicAcquired(int amount)
+    {
+        if (amount > 0)
+            Emit(new CampaignTransitionEvent(CampaignTransitionKind.RelicAcquired, Day: _state.Day, RegionId: _state.RegionId, Amount: amount));
     }
 
     private CampaignState SnapshotCurrentState()

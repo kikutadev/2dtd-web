@@ -18,10 +18,20 @@ public enum ProductAssetCategory
     Effect,
     Prop,
     Invasion,
+    Character,
     UiChrome,
 }
 
 public readonly record struct ProductAssetRef(ProductAssetCategory Category, string Id, string? Variant = null);
+
+public enum DarkSpiritExpression
+{
+    Neutral,
+    Alert,
+    Concerned,
+    Pleased,
+    Curious,
+}
 
 /// <summary>
 /// Single definition-to-art mapping shared by Godot and Web. The physical path remains host-specific.
@@ -94,6 +104,10 @@ public static class ProductAssetIdentity
 
     public static ProductAssetRef InvasionFortification()
         => new(ProductAssetCategory.Invasion, "IV-01");
+
+    /// <summary>Shared identity for the Dark Spirit dialogue portrait; hosts may use a fallback until promoted art exists.</summary>
+    public static ProductAssetRef DarkSpiritPortrait(DarkSpiritExpression expression = DarkSpiritExpression.Neutral)
+        => new(ProductAssetCategory.Character, "CH-DS-01", expression.ToString().ToLowerInvariant());
 
     /// <summary>Primary nine-slice frame for world/gameplay surfaces.</summary>
     public static ProductAssetRef UiWorldFrame()

@@ -101,6 +101,7 @@ SNAPSHOT_PATHS=(
   content/vertical-slice.json
   content/invasion-vertical-slice.json
   content/invasion-maps.json
+  content/narrative-campaign.json
   godot/assets/production
 )
 SOURCE_STATUS="$(git -C "$SOURCE_ROOT" status --porcelain --untracked-files=normal -- "${SNAPSHOT_PATHS[@]}")"
@@ -178,6 +179,9 @@ sync_file \
 sync_file \
   "$SOURCE_ROOT/content/invasion-maps.json" \
   "$WEB_ROOT/src/DungeonDefense.Web/wwwroot/content/invasion-maps.json"
+sync_file \
+  "$SOURCE_ROOT/content/narrative-campaign.json" \
+  "$WEB_ROOT/src/DungeonDefense.Web/wwwroot/content/narrative-campaign.json"
 
 sync_tree \
   "$SOURCE_ROOT/godot/assets/production" \
@@ -198,6 +202,9 @@ if [[ "$VERIFY_ONLY" -eq 1 ]]; then
     fi
     if ! cmp -s "$SOURCE_ROOT/content/invasion-maps.json" "$WEB_ROOT/src/DungeonDefense.Web/wwwroot/content/invasion-maps.json"; then
       echo "content/invasion-maps.json differs"
+    fi
+    if ! cmp -s "$SOURCE_ROOT/content/narrative-campaign.json" "$WEB_ROOT/src/DungeonDefense.Web/wwwroot/content/narrative-campaign.json"; then
+      echo "content/narrative-campaign.json differs"
     fi
     rsync -a --omit-dir-times --delete --exclude .DS_Store --exclude '*.import' --dry-run --itemize-changes \
       "$SOURCE_ROOT/godot/assets/production/" "$WEB_ROOT/src/DungeonDefense.Web/wwwroot/assets/production/"

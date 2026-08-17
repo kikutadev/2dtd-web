@@ -1,3 +1,4 @@
+using DungeonDefense.Contracts;
 using DungeonDefense.Core;
 
 namespace DungeonDefense.Application;
@@ -46,6 +47,34 @@ public static class CampaignContentIntegrityValidator
         foreach (var id in byId.Keys) Visit(id);
 
         return errors.Distinct(StringComparer.Ordinal).OrderBy(x => x, StringComparer.Ordinal).ToArray();
+    }
+
+
+    public static IReadOnlyList<string> ValidateNarrative(NarrativeContentFile narrative, RegionCampaignContent regions)
+    {
+        ArgumentNullException.ThrowIfNull(narrative);
+        ArgumentNullException.ThrowIfNull(regions);
+        var errors = new List<string>();
+        var regionById = regions.Regions.ToDictionary(x => x.Id, StringComparer.Ordinal);
+        foreach (var beat in narrative.Beats)
+        {
+            if (!Enum.TryParse<CampaignTransitionKind>(beat.Trigger, ignoreCase: false, out _))
+                errors.Add($"Narrative beat {beat.Id} references unknown transition trigger: {beat.Trigger}.");
+            if (beat.RegionId is { } regionId)
+            {
+                if (!regionById.TryGetValue(regionId, out var region))
+                    errors.Add($"Narrative beat {beat.Id} references unknown region: {regionId}.");
+                else if (beat.Day is { } day && day > region.FinalDefenseDay + 1)
+                    errors.Add($"Narrative beat {beat.Id} references Day {day} beyond region {regionId} content horizon {region.FinalDefenseDay + 1}.");
+            }
+        }
+        return errors.Distinct(StringComparer.Ordinal).OrderBy(x => x, StringComparer.Ordinal).ToArray();
+    }
+
+    public static void ValidateNarrativeOrThrow(NarrativeContentFile narrative, RegionCampaignContent regions)
+    {
+        var errors = ValidateNarrative(narrative, regions);
+        if (errors.Count > 0) throw new InvalidDataException($"Narrative content integrity failed: {string.Join(" | ", errors)}");
     }
 
     public static void ValidateOrThrow(CampaignProgressionContent progression, RegionCampaignContent regions)

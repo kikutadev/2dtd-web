@@ -7,7 +7,7 @@ namespace DungeonDefense.Infrastructure;
 
 public static class CampaignSaveCodec
 {
-    public const int SchemaVersion = 2;
+    public const int SchemaVersion = 3;
     public const int MaxFileBytes = 8 * 1_048_576;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -68,6 +68,7 @@ public static class CampaignSaveCodec
             ClearedDungeons = (file.ClearedDungeons ?? []).OrderBy(x => x.ArchiveId, StringComparer.Ordinal)
                 .Select(x => x with { Dungeon = PlayerDungeonSaveCodec.Parse(PlayerDungeonSaveCodec.Serialize(x.Dungeon)) }).ToArray(),
             ChallengeBestScores = (file.ChallengeBestScores ?? []).OrderBy(x => x.Key, StringComparer.Ordinal).ToArray(),
+            SeenNarrativeBeatIds = (file.SeenNarrativeBeatIds ?? []).OrderBy(x => x, StringComparer.Ordinal).ToArray(),
         };
         return JsonSerializer.Serialize(canonical, JsonContext.CampaignSaveFile).Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd() + "\n";
     }
@@ -113,7 +114,10 @@ public static class CampaignSaveCodec
         ArgumentNullException.ThrowIfNull(file.SpeciesLevels);
         ArgumentNullException.ThrowIfNull(file.InvasionProgress);
         ArgumentNullException.ThrowIfNull(file.Dungeon);
+        if (file.SeenNarrativeBeatIds is null) throw new InvalidDataException("seen_narrative_beat_ids is required.");
         EnsureUnique(file.CompletedResearchIds, "completed research ID");
+        EnsureUnique(file.SeenNarrativeBeatIds, "seen narrative beat ID");
+        if (file.SeenNarrativeBeatIds.Any(string.IsNullOrWhiteSpace)) throw new InvalidDataException("seen narrative beat ID is required.");
         EnsureUnique(file.UnlockIds, "unlock ID");
         EnsureUnique(file.SpeciesLevels.Select(x => x.SpeciesId), "species ID");
         EnsureUnique(file.InvasionProgress.Select(x => x.LocationId), "invasion location progress");

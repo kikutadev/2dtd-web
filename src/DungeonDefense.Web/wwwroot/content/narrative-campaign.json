@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "kind": "narrative_content",
+  "content_version": "narrative.dark-spirit.v1",
+  "tutorial": [
+    {"step":"Entrance","message_key":"spirit.tutorial.entrance","focus_intent":"Entrance","expression":"Neutral"},
+    {"step":"Route","message_key":"spirit.tutorial.route","focus_intent":"CurrentRoute","expression":"Curious"},
+    {"step":"Passage","message_key":"spirit.tutorial.passage","focus_intent":"PassagePlacementAnchor","expression":"Neutral"},
+    {"step":"Room","message_key":"spirit.tutorial.room","focus_intent":"RoomPlacementFootprint","expression":"Neutral"},
+    {"step":"DefensePhase","message_key":"spirit.tutorial.phase","focus_intent":"DefensePhaseControl","expression":"Alert"},
+    {"step":"Trap","message_key":"spirit.tutorial.trap","focus_intent":"TrapRouteCell","expression":"Pleased"},
+    {"step":"Guard","message_key":"spirit.tutorial.guard","focus_intent":"GuardInterceptCell","expression":"Neutral"},
+    {"step":"GuardZone","message_key":"spirit.tutorial.guard_zone","focus_intent":"LatestGuard","expression":"Curious"},
+    {"step":"Briefing","message_key":"spirit.tutorial.briefing","focus_intent":"None","expression":"Alert"},
+    {"step":"Combat","message_key":"spirit.tutorial.combat","focus_intent":"DefenseStartControl","expression":"Alert"},
+    {"step":"Result","message_key":"spirit.tutorial.result","focus_intent":"None","expression":"Concerned"}
+  ],
+  "beats": [
+    {"id":"first.opening","trigger":"CampaignStarted","message_key":"spirit.first.opening","mode":"Moment","priority":100,"region_id":"region.first_frontier","day":1,"focus_intent":"Dungeon","expression":"Curious"},
+    {"id":"first.day2.after_first_defense","trigger":"DayAdvanced","message_key":"spirit.first.day2","mode":"Ambient","priority":30,"region_id":"region.first_frontier","day":2,"expression":"Pleased"},
+    {"id":"first.day4.adventurer_report","trigger":"DayAdvanced","message_key":"spirit.first.day4","mode":"Ambient","priority":35,"region_id":"region.first_frontier","day":4,"expression":"Alert"},
+    {"id":"first.day7.guild","trigger":"DayAdvanced","message_key":"spirit.first.day7","mode":"Moment","priority":50,"region_id":"region.first_frontier","day":7,"expression":"Alert"},
+    {"id":"first.day10.mine","trigger":"DayAdvanced","message_key":"spirit.first.day10.mine","mode":"Moment","priority":45,"region_id":"region.first_frontier","day":10,"focus_intent":"InvasionLocation","expression":"Curious"},
+    {"id":"first.day12.chapel","trigger":"DayAdvanced","message_key":"spirit.first.day12.chapel","mode":"Moment","priority":45,"region_id":"region.first_frontier","day":12,"focus_intent":"InvasionLocation","expression":"Curious"},
+    {"id":"first.day15.lord","trigger":"DayAdvanced","message_key":"spirit.first.day15","mode":"Moment","priority":55,"region_id":"region.first_frontier","day":15,"expression":"Alert"},
+    {"id":"first.day20.church","trigger":"DayAdvanced","message_key":"spirit.first.day20","mode":"Moment","priority":60,"region_id":"region.first_frontier","day":20,"expression":"Concerned"},
+    {"id":"first.day25.hero_rumor","trigger":"DayAdvanced","message_key":"spirit.first.day25","mode":"Moment","priority":75,"region_id":"region.first_frontier","day":25,"expression":"Concerned"},
+    {"id":"first.day29.hero_approach","trigger":"DayAdvanced","message_key":"spirit.first.day29","mode":"Moment","priority":90,"region_id":"region.first_frontier","day":29,"expression":"Alert"},
+    {"id":"first.day30.final","trigger":"DayAdvanced","message_key":"spirit.first.day30","mode":"Moment","priority":100,"region_id":"region.first_frontier","day":30,"expression":"Alert"},
+    {"id":"first.cleared","trigger":"RegionCleared","message_key":"spirit.first.cleared","mode":"Moment","priority":100,"subject_id":"region.first_frontier","focus_intent":"Region","expression":"Pleased"},
+    {"id":"deep.opening","trigger":"RegionEntered","message_key":"spirit.deep.opening","mode":"Moment","priority":100,"subject_id":"region.deep_crypt","focus_intent":"Region","expression":"Curious"},
+    {"id":"deep.day7.pressure","trigger":"DayAdvanced","message_key":"spirit.deep.day7","mode":"Ambient","priority":40,"region_id":"region.deep_crypt","day":7,"expression":"Alert"},
+    {"id":"deep.day15.escalation","trigger":"DayAdvanced","message_key":"spirit.deep.day15","mode":"Moment","priority":55,"region_id":"region.deep_crypt","day":15,"expression":"Concerned"},
+    {"id":"deep.day25.final_warning","trigger":"DayAdvanced","message_key":"spirit.deep.day25","mode":"Moment","priority":75,"region_id":"region.deep_crypt","day":25,"expression":"Alert"},
+    {"id":"deep.day30.final","trigger":"DayAdvanced","message_key":"spirit.deep.day30","mode":"Moment","priority":100,"region_id":"region.deep_crypt","day":30,"expression":"Alert"},
+    {"id":"deep.cleared","trigger":"RegionCleared","message_key":"spirit.deep.cleared","mode":"Moment","priority":100,"subject_id":"region.deep_crypt","focus_intent":"Region","expression":"Pleased"},
+    {"id":"research.reinforced","trigger":"ResearchCompleted","message_key":"spirit.research.reinforced","mode":"Ambient","priority":25,"subject_id":"research.traps.reinforced_mechanisms","focus_intent":"Research","expression":"Curious"},
+    {"id":"relic.first","trigger":"RelicAcquired","message_key":"spirit.relic.first","mode":"Moment","priority":65,"focus_intent":"Research","expression":"Curious"},
+    {"id":"invasion.blackiron.b1","trigger":"InvasionFirstCleared","message_key":"spirit.invasion.blackiron.b1","mode":"Ambient","priority":35,"subject_id":"black_iron.b1","related_id":"location.black_iron_mine","focus_intent":"InvasionLocation","expression":"Pleased"},
+    {"id":"invasion.chapel.b1","trigger":"InvasionFirstCleared","message_key":"spirit.invasion.chapel.b1","mode":"Ambient","priority":35,"subject_id":"sunken_chapel.b1","related_id":"location.sunken_chapel","focus_intent":"InvasionLocation","expression":"Curious"}
+  ]
+}

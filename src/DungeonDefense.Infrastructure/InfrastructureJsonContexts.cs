@@ -36,3 +36,6 @@ internal sealed partial class PlayerDungeonSaveJsonContext : JsonSerializerConte
 
 [JsonSerializable(typeof(CampaignSaveFile))]
 internal sealed partial class CampaignSaveJsonContext : JsonSerializerContext;
+
+[JsonSerializable(typeof(NarrativeContentFile))]
+internal sealed partial class NarrativeContentJsonContext : JsonSerializerContext;

@@ -435,3 +435,24 @@ button:disabled { cursor: not-allowed; opacity: .46; }
   .invasion-shell .invasion-result-body .result-floor span { font-size: .5rem; }
   .invasion-shell .invasion-result-body .result-floor strong { font-size: .61rem; }
 }
+
+.spirit-message {
+    display: grid;
+    grid-template-columns: 48px 1fr;
+    gap: .65rem;
+    align-items: start;
+    margin: .65rem 0;
+    padding: .55rem .75rem;
+    border: 1px solid rgba(116, 177, 255, .38);
+    background: rgba(10, 18, 31, .86);
+    font-size: .88rem;
+    line-height: 1.35;
+}
+.spirit-portrait { width: 48px; height: 64px; object-fit: contain; image-rendering: pixelated; }
+.spirit-copy { display: grid; gap: .2rem; align-content: center; }
+.spirit-message strong { color: #a9d4ff; white-space: nowrap; }
+.spirit-message span { color: #e7eef8; }
+@media (max-width: 700px) {
+    .spirit-message { grid-template-columns: 42px 1fr; gap: .45rem; font-size: .82rem; }
+    .spirit-portrait { width: 42px; height: 56px; }
+}

@@ -23,6 +23,7 @@ internal static class WebProductAssets
             ProductAssetCategory.Prop => "props",
             ProductAssetCategory.Invasion => "invasion",
             ProductAssetCategory.UiChrome => "ui",
+            ProductAssetCategory.Character => "characters",
             _ => throw new ArgumentOutOfRangeException(nameof(asset), asset.Category, "Unknown product asset category."),
         };
         var suffix = string.IsNullOrWhiteSpace(asset.Variant) ? string.Empty : $"-{asset.Variant}";

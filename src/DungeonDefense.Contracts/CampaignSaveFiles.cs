@@ -138,4 +138,5 @@ public sealed record CampaignSaveFile(
     [property: JsonPropertyName("realtime")] CampaignRealtimeFile? Realtime = null,
     [property: JsonPropertyName("active_invasion")] CampaignActiveInvasionFile? ActiveInvasion = null,
     [property: JsonPropertyName("cleared_dungeons")] IReadOnlyList<CampaignClearedDungeonFile>? ClearedDungeons = null,
-    [property: JsonPropertyName("challenge_best_scores")] IReadOnlyList<CampaignChallengeBestFile>? ChallengeBestScores = null);
+    [property: JsonPropertyName("challenge_best_scores")] IReadOnlyList<CampaignChallengeBestFile>? ChallengeBestScores = null,
+    [property: JsonPropertyName("seen_narrative_beat_ids")] IReadOnlyList<string>? SeenNarrativeBeatIds = null);

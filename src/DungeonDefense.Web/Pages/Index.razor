@@ -65,6 +65,14 @@ else
                                 <p>@T(result.HypothesisMessageKey)</p>
                             </div>
                         </div>
+                        @{ var spiritHint = DarkSpiritHintPresentation.BuildDefenseHint(result); }
+                        <div class="spirit-message" data-spirit-beat="@spiritHint.BeatId">
+                            <img class="spirit-portrait" src="@WebProductAssets.Resolve(spiritHint.SpeakerPortrait)" alt="@T("spirit.speaker")" />
+                            <div class="spirit-copy">
+                                <strong>◆ @T("spirit.speaker")</strong>
+                                <span>@T(spiritHint.MessageKey)</span>
+                            </div>
+                        </div>
                         <div class="result-impact-grid result-impact-large">
                             <span>@T("result_core")</span><strong>@result.CoreHp / @result.CoreMaxHp</strong>
                             <span>@T("result_trap")</span><strong>@result.TrapDamage</strong>

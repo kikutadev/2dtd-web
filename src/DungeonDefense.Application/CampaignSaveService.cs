@@ -8,7 +8,8 @@ public sealed record SuspendedInvasionState(string LocationId, InvasionSimulatio
 public sealed record CampaignSaveImportResult(
     CampaignState State,
     DungeonFloorId SelectedFloorId,
-    SuspendedInvasionState? ActiveInvasion);
+    SuspendedInvasionState? ActiveInvasion,
+    CampaignNarrativeProgress NarrativeProgress);
 
 public static class CampaignSaveService
 {
@@ -16,7 +17,8 @@ public static class CampaignSaveService
         CampaignState state,
         DungeonFloorId selectedFloorId,
         string contentVersion,
-        SuspendedInvasionState? activeInvasion = null)
+        SuspendedInvasionState? activeInvasion = null,
+        CampaignNarrativeProgress? narrativeProgress = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         if (string.IsNullOrWhiteSpace(contentVersion)) throw new ArgumentException("Content version is required.", nameof(contentVersion));
@@ -25,7 +27,7 @@ public static class CampaignSaveService
         var resources = state.Resources;
         var realtime = state.Realtime;
         return new CampaignSaveFile(
-            2,
+            3,
             "campaign_save",
             contentVersion,
             state.Day,
@@ -62,13 +64,16 @@ public static class CampaignSaveService
                 .ToArray(),
             state.ChallengeBestScores.OrderBy(x => x.Key, StringComparer.Ordinal)
                 .Select(x => new CampaignChallengeBestFile(x.Key, x.Value))
+                .ToArray(),
+            (narrativeProgress?.SeenBeatIds ?? new HashSet<string>(StringComparer.Ordinal))
+                .OrderBy(x => x, StringComparer.Ordinal)
                 .ToArray());
     }
 
     public static CampaignSaveImportResult Import(CampaignSaveFile file, string expectedContentVersion)
     {
         ArgumentNullException.ThrowIfNull(file);
-        if (file.SchemaVersion != 2 || !string.Equals(file.Kind, "campaign_save", StringComparison.Ordinal))
+        if (file.SchemaVersion != 3 || !string.Equals(file.Kind, "campaign_save", StringComparison.Ordinal))
             throw new InvalidDataException("Unsupported campaign save schema/kind.");
         if (!string.Equals(file.ContentVersion, expectedContentVersion, StringComparison.Ordinal))
             throw new InvalidDataException($"Campaign save content version mismatch: {file.ContentVersion} != {expectedContentVersion}.");
@@ -104,6 +109,17 @@ public static class CampaignSaveService
             x.FinalAssaultProfileId,
             PlayerDungeonSaveService.Import(x.Dungeon).Dungeon));
         var challengeBestScores = (file.ChallengeBestScores ?? []).ToDictionary(x => x.Key, x => x.BestScore, StringComparer.Ordinal);
+        if (file.SeenNarrativeBeatIds is null)
+            throw new InvalidDataException("Campaign save seen_narrative_beat_ids is required.");
+        CampaignNarrativeProgress narrativeProgress;
+        try
+        {
+            narrativeProgress = new CampaignNarrativeProgress(file.SeenNarrativeBeatIds);
+        }
+        catch (ArgumentException ex)
+        {
+            throw new InvalidDataException($"Campaign narrative progress is invalid: {ex.Message}", ex);
+        }
         var state = new CampaignState(
             file.Day,
             file.RegionId,
@@ -119,7 +135,8 @@ public static class CampaignSaveService
         return new CampaignSaveImportResult(
             state,
             dungeon.SelectedFloorId,
-            file.ActiveInvasion is null ? null : ToDomain(file.ActiveInvasion));
+            file.ActiveInvasion is null ? null : ToDomain(file.ActiveInvasion),
+            narrativeProgress);
     }
 
     private static void ValidateRealtimeImport(CampaignRealtimeFile? realtime, ResourceBundle resources)

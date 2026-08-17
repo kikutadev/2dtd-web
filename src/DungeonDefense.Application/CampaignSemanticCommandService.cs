@@ -7,13 +7,17 @@ public sealed record CampaignSemanticCommandResult(
     bool Success,
     string? Error,
     int AdvancedTicks = 0,
-    ResourceBundle? CollectedProduction = null)
+    ResourceBundle? CollectedProduction = null,
+    IReadOnlyList<CampaignTransitionEvent>? Transitions = null)
 {
     public static CampaignSemanticCommandResult Ok(int advancedTicks = 0, ResourceBundle? collectedProduction = null)
-        => new(true, null, advancedTicks, collectedProduction);
+        => new(true, null, advancedTicks, collectedProduction, []);
 
     public static CampaignSemanticCommandResult Reject(string error)
-        => new(false, error);
+        => new(false, error, Transitions: []);
+
+    public CampaignSemanticCommandResult WithTransitions(IReadOnlyList<CampaignTransitionEvent> transitions)
+        => this with { Transitions = transitions };
 }
 
 /// <summary>
@@ -32,7 +36,8 @@ public static class CampaignSemanticCommandService
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(invasionContent);
 
-        return command switch
+        var transitionCursor = campaign.TransitionCount;
+        var result = command switch
         {
             CompleteResearchCommand research => FromAction(campaign.CompleteResearch(research.ResearchId)),
             ObserveRealtimeCommand realtime => ExecuteObserveRealtime(campaign, realtime),
@@ -45,6 +50,7 @@ public static class CampaignSemanticCommandService
             AdvanceTicksCommand advance => ExecuteAdvanceTicks(campaign, advance),
             _ => CampaignSemanticCommandResult.Reject($"Unsupported campaign semantic command: {command.Type}"),
         };
+        return result.WithTransitions(campaign.TransitionsSince(transitionCursor));
     }
 
     private static CampaignSemanticCommandResult ExecuteObserveRealtime(CampaignGameSession campaign, ObserveRealtimeCommand command)
