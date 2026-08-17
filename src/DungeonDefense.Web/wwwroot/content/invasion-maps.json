@@ -159,7 +159,7 @@
           "instance_id": "black_iron.b1.facility.1",
           "definition_id": "facility.arrow_slit",
           "position": {
-            "x": 4,
+            "x": 5,
             "y": 2
           }
         },
@@ -503,8 +503,8 @@
           "instance_id": "black_iron.b2.facility.1",
           "definition_id": "facility.arrow_slit",
           "position": {
-            "x": 4,
-            "y": 1
+            "x": 8,
+            "y": 2
           }
         },
         {
@@ -874,8 +874,8 @@
           "instance_id": "black_iron.b3.facility.1",
           "definition_id": "facility.arrow_slit",
           "position": {
-            "x": 4,
-            "y": 0
+            "x": 3,
+            "y": 1
           }
         },
         {
@@ -1214,16 +1214,16 @@
           "instance_id": "sunken_chapel.c1.facility.1",
           "definition_id": "facility.arrow_slit",
           "position": {
-            "x": 4,
-            "y": 1
+            "x": 1,
+            "y": 2
           }
         },
         {
           "instance_id": "sunken_chapel.c1.facility.2",
           "definition_id": "facility.magic_eye",
           "position": {
-            "x": 8,
-            "y": 5
+            "x": 2,
+            "y": 1
           }
         }
       ],
@@ -1551,16 +1551,16 @@
           "instance_id": "sunken_chapel.c2.facility.1",
           "definition_id": "facility.arrow_slit",
           "position": {
-            "x": 4,
-            "y": 0
+            "x": 9,
+            "y": 4
           }
         },
         {
           "instance_id": "sunken_chapel.c2.facility.2",
           "definition_id": "facility.magic_eye",
           "position": {
-            "x": 8,
-            "y": 4
+            "x": 0,
+            "y": 2
           }
         }
       ],
@@ -2226,16 +2226,16 @@
           "instance_id": "ossuary_foundry.f1.facility.1",
           "definition_id": "facility.arrow_slit",
           "position": {
-            "x": 4,
-            "y": 0
+            "x": 0,
+            "y": 2
           }
         },
         {
           "instance_id": "ossuary_foundry.f1.facility.2",
           "definition_id": "facility.magic_eye",
           "position": {
-            "x": 8,
-            "y": 4
+            "x": 11,
+            "y": 3
           }
         }
       ],
@@ -2578,7 +2578,7 @@
           "instance_id": "ossuary_foundry.f2.facility.2",
           "definition_id": "facility.magic_eye",
           "position": {
-            "x": 7,
+            "x": 8,
             "y": 1
           }
         }
@@ -2896,7 +2896,7 @@
           "instance_id": "ossuary_foundry.f3.facility.1",
           "definition_id": "facility.arrow_slit",
           "position": {
-            "x": 4,
+            "x": 2,
             "y": 2
           }
         },
@@ -3225,7 +3225,7 @@
           "instance_id": "veiled_reliquary.r1.facility.2",
           "definition_id": "facility.magic_eye",
           "position": {
-            "x": 8,
+            "x": 9,
             "y": 1
           }
         }
@@ -3546,7 +3546,7 @@
           "instance_id": "veiled_reliquary.r2.facility.1",
           "definition_id": "facility.arrow_slit",
           "position": {
-            "x": 4,
+            "x": 1,
             "y": 2
           }
         },
@@ -3875,16 +3875,16 @@
           "instance_id": "veiled_reliquary.r3.facility.1",
           "definition_id": "facility.arrow_slit",
           "position": {
-            "x": 4,
-            "y": 1
+            "x": 1,
+            "y": 2
           }
         },
         {
           "instance_id": "veiled_reliquary.r3.facility.2",
           "definition_id": "facility.magic_eye",
           "position": {
-            "x": 8,
-            "y": 5
+            "x": 2,
+            "y": 1
           }
         }
       ],
