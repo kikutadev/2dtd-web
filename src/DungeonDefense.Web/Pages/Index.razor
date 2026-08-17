@@ -8,9 +8,35 @@
 
 <PageTitle>Dungeon Defense</PageTitle>
 
-@if (_build is null)
+@if (_content is null)
 {
     <div class="loading-shell"><div class="loader"></div><p>@T("loading")</p></div>
+}
+else if (!_runStarted)
+{
+    <main class="title-screen">
+        <div class="title-locale locale-picker">
+            <button class="@(_locale == WebDemoLocalization.Japanese ? "active" : null)" @onclick="() => SetLocale(WebDemoLocalization.Japanese)">日本語</button>
+            <button class="@(_locale == WebDemoLocalization.English ? "active" : null)" @onclick="() => SetLocale(WebDemoLocalization.English)">EN</button>
+        </div>
+        <section class="title-panel">
+            <div class="title-mark">DUNGEON CORE</div>
+            <h1>@T("start.title")</h1>
+            <p class="title-description">@T("start.description")</p>
+            <div class="title-spirit">
+                <img src="@WebProductAssets.Resolve(ProductAssetIdentity.DarkSpiritPortrait(DarkSpiritExpression.Neutral))" alt="@T("spirit.speaker")" />
+                <div>
+                    <strong>◆ @T("spirit.speaker")</strong>
+                    <p>@T("start.spirit")</p>
+                </div>
+            </div>
+            <div class="title-actions">
+                <button class="primary start-run" @onclick="StartNewRun">@T("start.new_run")</button>
+                <button disabled title="@T("start.continue_unavailable")">@T("start.continue")</button>
+            </div>
+            <small class="title-save-note">@T("start.continue_unavailable")</small>
+        </section>
+    </main>
 }
 else
 {
@@ -206,7 +232,7 @@ else
                     <div class="control-group build-controls">
                         <div class="section-label">@T("place_section")</div>
                         <div class="build-option-list">
-                            @foreach (var option in _build.BuildOptions)
+                            @foreach (var option in _build!.BuildOptions)
                             {
                                 <button class="build-option @BuildOptionClass(option)" @onclick="() => SelectBuildOption(option)">
                                     <span>@BuildOptionText(option.Id)</span>
@@ -237,10 +263,10 @@ else
                     </div>
 
                     <div class="control-group start-defense">
-                        <button class="primary" disabled="@(!_build.StartValidation.Success)" @onclick="StartBuiltDefense">@T("start_defense")</button>
-                        @if (!_build.StartValidation.Success)
+                        <button class="primary" disabled="@(!_build!.StartValidation.Success)" @onclick="StartBuiltDefense">@T("start_defense")</button>
+                        @if (!_build!.StartValidation.Success)
                         {
-                            <p class="notice">@string.Join(" / ", _build.StartValidation.Errors)</p>
+                            <p class="notice">@string.Join(" / ", _build!.StartValidation.Errors)</p>
                         }
                         else if (!string.IsNullOrWhiteSpace(_notice))
                         {
@@ -295,6 +321,7 @@ else
     private bool _rotated;
     private string? _notice;
     private bool _showInvasion;
+    private bool _runStarted;
     private string _locale = WebDemoLocalization.Japanese;
 
     private bool IsBuilding => _demo is null;
@@ -309,9 +336,23 @@ else
     protected override async Task OnInitializedAsync()
     {
         _content = await WebDefenseContentLoader.LoadAsync(Http, _cts.Token);
-        _build = new DungeonBuildDemo(_content);
-        _selectedDefinitionId = DefenseSliceBuildCatalog.SpikeTrap.Id;
         _ = RunLoopAsync(_cts.Token);
+    }
+
+
+    private void StartNewRun()
+    {
+        if (_content is null) return;
+        _build = new DungeonBuildDemo(_content);
+        _demo = null;
+        _showInvasion = false;
+        _running = false;
+        _speed = 1;
+        _selectedDefinitionId = DefenseSliceBuildCatalog.SpikeTrap.Id;
+        _removeMode = false;
+        _rotated = false;
+        _notice = null;
+        _runStarted = true;
     }
 
     private async Task RunLoopAsync(CancellationToken cancellationToken)

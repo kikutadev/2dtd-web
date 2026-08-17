@@ -13,6 +13,7 @@ const port = Number(process.env.WEB_SMOKE_PORT ?? '5279');
 const debugPort = Number(process.env.WEB_SMOKE_DEBUG_PORT ?? '19433');
 const externalUrl = process.env.WEB_SMOKE_BASE_URL?.trim();
 const capturePath = process.env.WEB_SMOKE_CAPTURE_PATH?.trim();
+const titleCapturePath = process.env.WEB_SMOKE_TITLE_CAPTURE_PATH?.trim();
 const invasionScoutCapturePath = process.env.WEB_SMOKE_INVASION_SCOUT_CAPTURE_PATH?.trim();
 const invasionResultCapturePath = process.env.WEB_SMOKE_INVASION_RESULT_CAPTURE_PATH?.trim();
 const invasionCaptureWidth = Number(process.env.WEB_SMOKE_INVASION_CAPTURE_WIDTH ?? '844');
@@ -182,7 +183,10 @@ try {
   await cdp('Page.enable');
   await cdp('Page.navigate', { url });
   try {
-    await waitForExpression(`document.body?.innerText.includes('ダンジョン構築')`, 15_000, 'Build phase');
+    await waitForExpression(`document.body?.innerText.includes('新規Runを始める')`, 15_000, 'Title screen');
+    await captureViewport(titleCapturePath, 844, 390);
+    await clickButtonContaining('新規Runを始める');
+    await waitForExpression(`document.body?.innerText.includes('ダンジョン構築')`, 5_000, 'Build phase');
   } catch (error) {
     console.error('browser-diagnostics=', browserDiagnostics.join('\n'));
     console.error('browser-body=', await evaluate(`document.body?.innerText ?? ''`));
