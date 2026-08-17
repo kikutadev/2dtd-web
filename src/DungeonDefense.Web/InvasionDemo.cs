@@ -45,9 +45,20 @@ internal sealed class InvasionDemo
     public InvasionSimulation? Simulation => _commandSession?.Simulation;
     public InvasionBattleVisualState? VisualState => Simulation is { } simulation ? InvasionBattlePresentation.Build(simulation) : null;
     public CombatVisualState CombatVisualState => _motion.VisualState;
-    public InvasionResultVisualState? ResultState => Simulation is { Outcome: not InvasionOutcome.Running } simulation
-        ? InvasionResultPresentation.Build(SelectedLocationId, simulation)
-        : null;
+    public InvasionResultVisualState? ResultState
+    {
+        get
+        {
+            if (Simulation is not { Outcome: not InvasionOutcome.Running } simulation) return null;
+            var resolution = InvasionCampaignService.DescribeOutcome(
+                _scoutState,
+                _content,
+                SelectedLocationId,
+                simulation,
+                firstClearOverride: true);
+            return InvasionResultPresentation.Build(SelectedLocationId, simulation, resolution);
+        }
+    }
     public string SelectedLocationId { get; private set; }
     public string SelectedFloorId { get; private set; }
     public InvasionLocationDefinition SelectedLocation => _content.Location(SelectedLocationId);

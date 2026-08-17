@@ -32,6 +32,12 @@ public static class InvasionResultPresentation
             InvasionOutcome.Retreated => "invasion.result.lesson.retreated",
             _ => "invasion.result.lesson.wiped",
         };
+        var performanceMessageKey = resolution?.PerformanceGrade switch
+        {
+            InvasionPerformanceGrade.CleanClear => "invasion.result.performance.clean",
+            InvasionPerformanceGrade.ControlledClear => "invasion.result.performance.controlled",
+            _ => null,
+        };
 
         return new InvasionResultVisualState(
             simulation.Outcome,
@@ -46,7 +52,13 @@ public static class InvasionResultPresentation
             simulation.Floor.Sections.Count,
             simulation.SecuredLoot,
             resolution is not null,
+            resolution?.BaseGrantedLoot ?? ResourceBundle.Zero,
+            resolution?.PerformanceBonus ?? ResourceBundle.Zero,
             resolution?.GrantedLoot ?? ResourceBundle.Zero,
+            resolution?.PerformanceGrade ?? InvasionPerformanceGrade.None,
+            resolution?.PerformanceBonusPercent ?? 0,
+            resolution?.EngagedUnitCount ?? 0,
+            performanceMessageKey,
             resolution?.FirstClear ?? false,
             resolution?.NewlyUnlockedFloorId,
             lessonKey);
@@ -66,7 +78,13 @@ public sealed record InvasionResultVisualState(
     int SectionCount,
     ResourceBundle SecuredLoot,
     bool HasCampaignResolution,
+    ResourceBundle BaseGrantedLoot,
+    ResourceBundle PerformanceBonus,
     ResourceBundle GrantedLoot,
+    InvasionPerformanceGrade PerformanceGrade,
+    int PerformanceBonusPercent,
+    int EngagedUnitCount,
+    string? PerformanceMessageKey,
     bool FirstClear,
     string? NewlyUnlockedFloorId,
     string LessonMessageKey);

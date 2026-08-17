@@ -59,6 +59,12 @@ public sealed class InvasionDemoTests
         Assert.Equal(InvasionOutcome.Success, demo.Simulation!.Outcome);
         Assert.Equal(demo.SelectedFloor.Sections.Count, demo.Simulation.ClearedSectionIds.Count);
         Assert.Contains(demo.Simulation.Events, x => x.Type == InvasionEventType.ObjectiveCompleted);
+        var result = Assert.IsType<DungeonDefense.Presentation.InvasionResultVisualState>(demo.ResultState);
+        Assert.NotEqual(DungeonDefense.Application.InvasionPerformanceGrade.None, result.PerformanceGrade);
+        Assert.True(result.PerformanceBonusPercent is 5 or 10);
+        Assert.Equal(0, result.PerformanceBonus.Relic);
+        Assert.Equal(result.BaseGrantedLoot.Add(result.PerformanceBonus), result.GrantedLoot);
+        Assert.NotNull(result.PerformanceMessageKey);
     }
 
     [Fact]

@@ -55,7 +55,12 @@ public sealed record InvasionResolution(
     string LocationId,
     string FloorId,
     ResourceBundle SecuredLoot,
+    ResourceBundle BaseGrantedLoot,
+    ResourceBundle PerformanceBonus,
     ResourceBundle GrantedLoot,
+    InvasionPerformanceGrade PerformanceGrade,
+    int PerformanceBonusPercent,
+    int EngagedUnitCount,
     bool FirstClear,
     string? NewlyUnlockedFloorId);
 
@@ -169,13 +174,15 @@ public static class InvasionCampaignService
         var location = content.Location(locationId);
         var floor = content.Floor(locationId, simulation.Floor.Id);
         var firstClear = firstClearOverride ?? !state.IsInvasionFloorCleared(location.Id, floor.Id);
-        var granted = simulation.Outcome switch
+        var baseGranted = simulation.Outcome switch
         {
             InvasionOutcome.Success => simulation.SecuredLoot.Add(firstClear ? floor.FirstClearReward : floor.RepeatReward),
             InvasionOutcome.Retreated => simulation.SecuredLoot,
             InvasionOutcome.Wiped => Scale(simulation.SecuredLoot, content.WipeLootPercent),
             _ => throw new InvalidOperationException($"Unsupported invasion outcome: {simulation.Outcome}"),
         };
+        var performance = InvasionPerformanceRewardPolicy.Resolve(simulation, baseGranted);
+        var granted = baseGranted.Add(performance.Bonus);
         var newlyUnlocked = simulation.Outcome == InvasionOutcome.Success && firstClear
             ? location.Floors
                 .Where(x => x.Depth > floor.Depth)
@@ -183,7 +190,19 @@ public static class InvasionCampaignService
                 .FirstOrDefault()?.Id
             : null;
 
-        return new InvasionResolution(simulation.Outcome, location.Id, floor.Id, simulation.SecuredLoot, granted, firstClear, newlyUnlocked);
+        return new InvasionResolution(
+            simulation.Outcome,
+            location.Id,
+            floor.Id,
+            simulation.SecuredLoot,
+            baseGranted,
+            performance.Bonus,
+            granted,
+            performance.Grade,
+            performance.BonusPercent,
+            performance.EngagedUnitCount,
+            firstClear,
+            newlyUnlocked);
     }
 
     public static InvasionResolution ApplyOutcome(CampaignState state, InvasionContent content, string locationId, InvasionSimulation simulation)

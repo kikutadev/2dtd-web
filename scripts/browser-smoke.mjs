@@ -14,6 +14,7 @@ const debugPort = Number(process.env.WEB_SMOKE_DEBUG_PORT ?? '19433');
 const externalUrl = process.env.WEB_SMOKE_BASE_URL?.trim();
 const capturePath = process.env.WEB_SMOKE_CAPTURE_PATH?.trim();
 const invasionScoutCapturePath = process.env.WEB_SMOKE_INVASION_SCOUT_CAPTURE_PATH?.trim();
+const invasionResultCapturePath = process.env.WEB_SMOKE_INVASION_RESULT_CAPTURE_PATH?.trim();
 const invasionCaptureWidth = Number(process.env.WEB_SMOKE_INVASION_CAPTURE_WIDTH ?? '844');
 const invasionCaptureHeight = Number(process.env.WEB_SMOKE_INVASION_CAPTURE_HEIGHT ?? '390');
 const invasionCaptureLocale = (process.env.WEB_SMOKE_INVASION_CAPTURE_LOCALE ?? 'ja').trim().toLowerCase();
@@ -330,6 +331,47 @@ try {
     return false;
   }, 25_000, 'Invasion result');
   if (invasionOutcome !== '侵攻成功') throw new Error(`Expected canonical invasion success, got ${invasionOutcome}`);
+  const performanceResult = await evaluate(`(() => {
+    const text = document.body.innerText;
+    return {
+      base: text.includes('通常報酬'),
+      performance: text.includes('無犠牲攻略') || text.includes('損耗抑制'),
+      percent: text.includes('%'),
+      total: text.includes('持ち帰り')
+    };
+  })()`);
+  if (!performanceResult.base || !performanceResult.performance || !performanceResult.percent || !performanceResult.total)
+    throw new Error(`Invasion performance result semantics missing: ${JSON.stringify(performanceResult)}`);
+  if (invasionResultCapturePath) {
+    if (invasionCaptureLocale === 'en') {
+      await clickButtonContaining('EN');
+      await waitForExpression(`document.body.innerText.includes('Base reward') && (document.body.innerText.includes('Clean Clear') || document.body.innerText.includes('Controlled Clear'))`, 3_000, 'English invasion result capture locale');
+    }
+    await captureViewport(invasionResultCapturePath, invasionCaptureWidth, invasionCaptureHeight);
+    const resultLayout = await evaluate(`(() => {
+      const body = document.querySelector('.invasion-result-body');
+      const strip = body?.querySelector('.result-floor-strip');
+      if (!body || !strip) return { present: false };
+      const bodyRect = body.getBoundingClientRect();
+      const stripRect = strip.getBoundingClientRect();
+      return {
+        present: true,
+        pageWidth: document.documentElement.scrollWidth,
+        viewportWidth: window.innerWidth,
+        bodyBottom: bodyRect.bottom,
+        stripBottom: stripRect.bottom,
+        floors: strip.querySelectorAll('.result-floor').length
+      };
+    })()`);
+    if (!resultLayout.present || resultLayout.pageWidth > resultLayout.viewportWidth + 1 || resultLayout.floors !== 4 || resultLayout.stripBottom > resultLayout.bodyBottom + 1)
+      throw new Error(`Invasion result layout overflow: ${JSON.stringify(resultLayout)}`);
+    if (invasionCaptureLocale === 'en') {
+      await clickButtonContaining('日本語');
+      await waitForExpression(`document.body.innerText.includes('通常報酬')`, 3_000, 'Japanese invasion result continuation locale');
+    }
+    await cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+    await new Promise(resolve => setTimeout(resolve, 150));
+  }
 
   await clickButtonContaining('偵察へ戻る');
   await waitForExpression(`document.body.innerText.includes('偵察') && document.body.innerText.includes('黒鉄坑道')`, 3_000, 'Return to invasion scouting');

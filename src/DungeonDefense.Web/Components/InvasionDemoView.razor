@@ -148,7 +148,19 @@ else
                             <span>@T("force")</span><strong>@result.Survivors / @result.TotalUnits</strong>
                             <span>@T("defeated")</span><strong>@result.DefeatedCount</strong>
                             <span>@T("progress")</span><strong>@result.ReachedSection / @result.SectionCount</strong>
-                            <span>@T("secured")</span><strong>@ResourceText(result.SecuredLoot)</strong>
+                            @if (result.HasCampaignResolution)
+                            {
+                                <span>@T("base_reward")</span><strong>@ResourceText(result.BaseGrantedLoot)</strong>
+                                @if (result.PerformanceBonus != ResourceBundle.Zero && result.PerformanceMessageKey is { } performanceKey)
+                                {
+                                    <span class="performance-label">@T(performanceKey)</span><strong class="performance-value">+@ResourceText(result.PerformanceBonus) · @result.PerformanceBonusPercent%</strong>
+                                }
+                                <span>@T("brought_home")</span><strong>@ResourceText(result.GrantedLoot)</strong>
+                            }
+                            else
+                            {
+                                <span>@T("secured")</span><strong>@ResourceText(result.SecuredLoot)</strong>
+                            }
                         </div>
                         <div class="result-floor-strip">
                             @for (var index = 0; index < result.SectionCount; index++)
