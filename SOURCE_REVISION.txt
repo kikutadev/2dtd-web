@@ -1,5 +1,5 @@
 Source project: 2dTD
-Source game revision: fc4f409a48741b0f81b0936f8fb55fe90e9d04e3
+Source game revision: 49919ccdc3931ee0ca29d197788b9ef772cbc4cb
 Source snapshot paths dirty: no
 Source repository has unrelated changes: yes
 Reproducible from revision alone: yes
