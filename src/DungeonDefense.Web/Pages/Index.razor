@@ -3,6 +3,7 @@
 @using DungeonDefense.Application
 @using DungeonDefense.Core
 @using DungeonDefense.Presentation
+@using DungeonDefense.Contracts
 @using System.Diagnostics
 @inject HttpClient Http
 
@@ -32,10 +33,57 @@ else if (!_runStarted)
             </div>
             <div class="title-actions">
                 <button class="primary start-run" @onclick="StartNewRun">@T("start.new_run")</button>
-                <button disabled title="@T("start.continue_unavailable")">@T("start.continue")</button>
+                <button disabled="@(_build is null)" @onclick="ContinueCurrentRun" title="@(_build is null ? T("start.continue_unavailable") : T("start.continue_session"))">@T("start.continue")</button>
             </div>
-            <small class="title-save-note">@T("start.continue_unavailable")</small>
+            <small class="title-save-note">@(_build is null ? T("start.continue_unavailable") : T("start.continue_session"))</small>
         </section>
+    </main>
+}
+else if (_showHub && _build is not null)
+{
+    <main class="hub-shell">
+        <header class="hub-top">
+            <div><strong>@T("hub.heading")</strong><span>@T("hub.day1")</span></div>
+            <div class="hub-top-actions"><button @onclick="ReturnToTitle">@T("common.title")</button><div class="locale-picker"><button class="@(_locale == WebDemoLocalization.Japanese ? "active" : null)" @onclick="() => SetLocale(WebDemoLocalization.Japanese)">日本語</button><button class="@(_locale == WebDemoLocalization.English ? "active" : null)" @onclick="() => SetLocale(WebDemoLocalization.English)">EN</button></div></div>
+        </header>
+        <section class="hub-body">
+            <div class="hub-dungeon">
+                <div class="hub-summary"><strong>@T("hub.current_dungeon")</strong><span>@F("hub.capacity_route", BuildState.UsedCapacity, BuildState.CapacityMax, BuildState.RouteLength)</span></div>
+                <div class="hub-board board" style="grid-template-columns: repeat(@Board.Width, 1fr);">
+                    @for (var y = 0; y < Board.Height; y++)
+                    {
+                        @for (var x = 0; x < Board.Width; x++)
+                        {
+                            var point = new GridPoint(x, y);
+                            <div class="cell" style="background-image:url('@TileAsset(point, Board)')">
+                                @if (point == Board.Core) { <img class="object core" src="@CoreAsset" alt="Core" /> }
+                            </div>
+                        }
+                    }
+                </div>
+                <div class="hub-spirit">
+                    <img src="@WebProductAssets.Resolve(ProductAssetIdentity.DarkSpiritPortrait(DarkSpiritExpression.Neutral))" alt="@T("spirit.speaker")" />
+                    <div><strong>◆ @T("spirit.speaker")</strong><p>@T("hub.spirit_first")</p></div>
+                </div>
+            </div>
+            <nav class="hub-actions">
+                <button class="primary" @onclick="OpenBriefingFromHub">@T("hub.next_assault")</button>
+                <button @onclick="OpenBuildFromHub">@T("hub.edit")</button>
+                <div class="hub-secondary"><button @onclick="OpenInvasionFromHub">@T("hub.invasion")</button><button disabled>@T("hub.research")</button></div>
+            </nav>
+        </section>
+    </main>
+}
+else if (_showBriefing && _build is not null)
+{
+    <main class="briefing-shell">
+        <section class="briefing-panel">
+            <div class="briefing-heading"><span>@T("briefing.label")</span><h1>@T("briefing.title")</h1></div>
+            <div class="briefing-facts"><div><span>@T("route")</span><strong>@BuildState.RouteLength</strong></div><div><span>@T("placements")</span><strong>@BuildState.PlacementCount</strong></div><div><span>@T("defense")</span><strong>@(BuildState.CanStartDefense ? T("ready") : T("needs_fix"))</strong></div></div>
+            <p>@T("briefing.description")</p>
+            <div class="briefing-actions"><button @onclick="ReturnToHub">@T("common.home")</button><button @onclick="OpenBuildFromBriefing">@T("hub.edit")</button><button class="primary tutorial-defense-start" disabled="@(!_build.StartValidation.Success)" @onclick="StartDefenseFromBriefing">@T("briefing.defend")</button></div>
+        </section>
+        <TutorialSpiritOverlay Flow="_tutorial" Content="_narrativeContent!" Locale="@_locale" OnNext="TutorialNext" OnSkip="SkipTutorial" />
     </main>
 }
 else
@@ -47,35 +95,28 @@ else
     else
     {
     <div class="app-shell">
-        <header class="topbar">
-            <div>
-                <h1>@T("title")</h1>
-            </div>
-            <div class="top-actions"><button class="mode-link" @onclick="OpenInvasionDemo">@T("invasion_demo")</button><div class="locale-picker"><button class="@(_locale == WebDemoLocalization.Japanese ? "active" : null)" @onclick="() => SetLocale(WebDemoLocalization.Japanese)">日本語</button><button class="@(_locale == WebDemoLocalization.English ? "active" : null)" @onclick="() => SetLocale(WebDemoLocalization.English)">EN</button></div></div>
-        </header>
-
         @if (IsBuilding)
         {
-            <section class="status-row">
-                <div><span>@T("phase")</span><strong>@T("build_phase")</strong></div>
-                <div><span>@T("capacity")</span><strong>@BuildState.UsedCapacity / @BuildState.CapacityMax</strong></div>
-                <div><span>@T("route")</span><strong>@BuildState.RouteLength cells</strong></div>
-                <div><span>@T("defense")</span><strong>@(BuildState.CanStartDefense ? T("ready") : T("needs_fix"))</strong></div>
-                <div><span>@T("placements")</span><strong>@BuildState.PlacementCount</strong></div>
-            </section>
+            <header class="mobile-game-topbar">
+                <button class="floor-chip">@T("floor_1")</button>
+                <span>@T("capacity") <strong>@BuildState.UsedCapacity/@BuildState.CapacityMax</strong></span>
+                <span>@T("route") <strong>@BuildState.RouteLength</strong></span>
+                <span class="topbar-spacer"></span>
+                <button @onclick="OpenBriefingFromEditor">@T("hub.next_assault")</button>
+                <button class="primary tutorial-editor-done" @onclick="OpenBriefingFromEditor">@T("editor.done")</button>
+            </header>
         }
         else
         {
-            <section class="status-row">
-                <div><span>@T("defense")</span><strong>@OutcomeText</strong></div>
-                <div><span>@T("wave")</span><strong>@WaveText</strong></div>
-                <div><span>@T("core")</span><strong>@CoreText</strong></div>
-                <div><span>MP</span><strong>@MpText</strong></div>
-                <div><span>@T("impact")</span><strong>@DesignImpactText</strong></div>
-            </section>
+            <header class="mobile-game-topbar combat-topbar">
+                <span><strong>@T("hub.day1")</strong></span>
+                <span>@T("wave") <strong>@WaveText</strong></span>
+                <span class="topbar-spacer"></span>
+                <span>@T("core") <strong>@CoreText</strong></span>
+            </header>
         }
 
-        <main class="game-layout">
+        <main class="game-layout @(IsBuilding ? "mobile-build-layout" : DefenseResult is not null ? "mobile-result-layout" : "mobile-combat-layout")">
             <section class="world-card">
                 @if (DefenseResult is { } result)
                 {
@@ -126,15 +167,7 @@ else
                             <strong>@T("floor_1")</strong>
                             <span>@(IsBuilding ? T("build_heading") : T("battle_heading"))</span>
                         </div>
-                        @if (!IsBuilding)
-                        {
-                            <div class="speed-picker" aria-label="再生速度">
-                                @foreach (var speed in new[] { 1, 2, 3 })
-                                {
-                                    <button class="@(speed == _speed ? "active" : null)" @onclick="() => _speed = speed">@speed×</button>
-                                }
-                            </div>
-                        }
+
                     </div>
 
                     <div class="board-wrap">
@@ -215,7 +248,7 @@ else
                             }
                             else
                             {
-                                <span>@((MarkupString)F("place_hint", $"<strong>{System.Net.WebUtility.HtmlEncode(SelectedBuildLabel)}</strong>"))</span>
+                                <span>@BuildInteractionHint</span>
                             }
                         </div>
                     }
@@ -229,89 +262,89 @@ else
             <aside class="control-card">
                 @if (IsBuilding)
                 {
-                    <div class="control-group build-controls">
-                        <div class="section-label">@T("place_section")</div>
-                        <div class="build-option-list">
-                            @foreach (var option in _build!.BuildOptions)
-                            {
-                                <button class="build-option @BuildOptionClass(option)" @onclick="() => SelectBuildOption(option)">
-                                    <span>@BuildOptionText(option.Id)</span>
-                                    <small>@BuildKindText(option.Kind) · @option.CapacityCost</small>
-                                </button>
-                            }
+                    <div class="mobile-editor-toolbar">
+                        <button class="@(_editorPhase == WebEditorPhase.Structure ? "active-tool" : null) @(_tutorial.Active && _tutorial.Step == TutorialStep.DefensePhase ? "tutorial-target" : null)" @onclick="() => SetEditorPhase(WebEditorPhase.Structure)">@T("editor.phase.structure")</button>
+                        <button class="@(_editorPhase == WebEditorPhase.DefensePlacement ? "active-tool" : null) @(_tutorial.Active && _tutorial.Step == TutorialStep.DefensePhase ? "tutorial-target" : null)" @onclick="() => SetEditorPhase(WebEditorPhase.DefensePlacement)">@T("editor.phase.defense")</button>
+                        <button class="primary add-button" @onclick="ToggleCatalog">@T("editor.add")</button>
+                        <span class="toolbar-spacer"></span>
+                        <button @onclick="UndoBuild">@T("common.undo")</button>
+                        <button @onclick="RedoBuild">@T("common.redo")</button>
+                    </div>
+                    @if (_catalogOpen)
+                    {
+                        <div class="editor-catalog-sheet">
+                            <div class="catalog-heading"><strong>@(_editorPhase == WebEditorPhase.Structure ? T("editor.phase.structure") : T("editor.phase.defense"))</strong><button @onclick="ToggleCatalog">×</button></div>
+                            <div class="catalog-grid">
+                                @if (_editorPhase == WebEditorPhase.Structure)
+                                {
+                                    <button class="build-option @(_digMode ? "selected" : null)" @onclick="SelectDigMode"><span>@T("editor.add.passage")</span><small>1 cell</small></button>
+                                    @foreach (var option in _build!.BuildOptions.Where(x => x.Kind == BuildKind.Room))
+                                    {
+                                        <button class="build-option @BuildOptionClass(option)" @onclick="() => SelectBuildOption(option)"><span>@BuildOptionText(option.Id)</span><small>@option.CapacityCost</small></button>
+                                    }
+                                }
+                                else
+                                {
+                                    @foreach (var option in _build!.BuildOptions.Where(x => x.Kind is BuildKind.Trap or BuildKind.Guard or BuildKind.Facility))
+                                    {
+                                        <button class="build-option @BuildOptionClass(option)" @onclick="() => SelectBuildOption(option)"><span>@BuildOptionText(option.Id)</span><small>@BuildKindText(option.Kind) · @option.CapacityCost</small></button>
+                                    }
+                                }
+                            </div>
+                            <div class="catalog-secondary">
+                                @if (SelectedBuildOption?.Kind == BuildKind.Room) { <button @onclick="ToggleRotation">@T("rotate_room")</button> }
+                                <button class="@(_removeMode ? "danger active-tool" : null)" @onclick="ToggleRemoveMode">@T("remove")</button>
+                                <button @onclick="ResetBuild">@T("reset_board")</button>
+                            </div>
                         </div>
-                    </div>
-
-                    <div class="control-group build-tools">
-                        <div class="section-label">@T("edit_section")</div>
-                        @if (SelectedBuildOption?.Kind == BuildKind.Room)
-                        {
-                            <button class="@(_rotated ? "active-tool" : null)" @onclick="ToggleRotation">@T("rotate_room")</button>
-                        }
-                        <button class="@(_removeMode ? "danger active-tool" : null)" @onclick="ToggleRemoveMode">@T("remove")</button>
-                        <button @onclick="ResetBuild">@T("reset_board")</button>
-                    </div>
-
-                    <div class="control-group build-analysis">
-                        <div class="section-label">@T("summary")</div>
-                        <div class="analysis-grid">
-                            <span>@T("first_contact")</span><strong>@FirstContactText</strong>
-                            <span>@T("trap_contacts")</span><strong>@BuildState.TrapContactCount</strong>
-                            <span>@T("guard_coverage")</span><strong>@BuildState.GuardCoveredRouteCells / @BuildState.RouteLength</strong>
-                            <span>@T("facility_coverage")</span><strong>@BuildState.FacilityCoveredRouteCells / @BuildState.RouteLength</strong>
-                        </div>
-                    </div>
-
-                    <div class="control-group start-defense">
-                        <button class="primary" disabled="@(!_build!.StartValidation.Success)" @onclick="StartBuiltDefense">@T("start_defense")</button>
-                        @if (!_build!.StartValidation.Success)
-                        {
-                            <p class="notice">@string.Join(" / ", _build!.StartValidation.Errors)</p>
-                        }
-                        else if (!string.IsNullOrWhiteSpace(_notice))
-                        {
-                            <p class="notice">@_notice</p>
-                        }
-                    </div>
+                    }
                 }
                 else if (DefenseResult is not null)
                 {
-                    <div class="control-group result-actions">
-                        <div class="section-label">@T("result_next")</div>
+                    <div class="mobile-result-actions">
                         <button class="primary" @onclick="ReturnToBuild">@T("return_build")</button>
                         <button @onclick="ToggleRun">@T("run_again")</button>
+                        <span class="toolbar-spacer"></span>
+                        <button @onclick="ReturnToHub">@T("common.home")</button>
                     </div>
-                    <p class="muted result-action-hint">@T("result_action_hint")</p>
                 }
                 else
                 {
-                    <div class="control-group primary-controls">
-                        <button class="primary" @onclick="ToggleRun">@RunButtonText</button>
-                    </div>
-
-                    <div class="control-group">
-                        <div class="section-label">@T("magic")</div>
+                    <div class="mobile-combat-toolbar">
+                        <div class="combat-mp"><span>MP</span><strong>@MpText</strong></div>
                         <button @onclick="CastFreeze" disabled="@(!SpellEnabled("spell.freeze"))">@SpellButtonText("spell.freeze", "freeze")</button>
                         <button @onclick="CastPush" disabled="@(!SpellEnabled("spell.push"))">@SpellButtonText("spell.push", "push")</button>
-                        @if (!string.IsNullOrWhiteSpace(_notice)) { <p class="notice">@_notice</p> }
+                        <button class="@(_demo?.AutoBattleEnabled == true ? "active-tool" : null)" @onclick="ToggleAutoBattle">@T(_demo?.AutoBattleEnabled == true ? "auto_on" : "auto_off")</button>
+                        <span class="toolbar-spacer"></span>
+                        <button @onclick="ToggleRun">@RunButtonText</button>
+                        <div class="speed-picker" aria-label="再生速度">
+                            @foreach (var speed in new[] { 1, 2, 3 })
+                            {
+                                <button class="@(speed == _speed ? "active" : null)" @onclick="() => _speed = speed">@speed×</button>
+                            }
+                        </div>
                     </div>
-
-                    <div class="control-group event-log">
-                        <div class="section-label">@T("recent_events")</div>
-                        <p class="muted">@LatestDefenseEventText</p>
-                    </div>
+                    @if (!string.IsNullOrWhiteSpace(_notice)) { <p class="combat-notice">@_notice</p> }
                 }
             </aside>
         </main>
+        @if (_narrativeContent is not null)
+        {
+            <TutorialSpiritOverlay Flow="_tutorial" Content="_narrativeContent" Locale="@_locale" OnNext="TutorialNext" OnSkip="SkipTutorial" />
+        }
 
     </div>
     }
 }
 
 @code {
+    private enum WebEditorPhase { Structure, DefensePlacement }
+
     private readonly CancellationTokenSource _cts = new();
     private PeriodicTimer? _timer;
     private DefenseContent? _content;
+    private NarrativePresentationContent? _narrativeContent;
+    private readonly TutorialFlow _tutorial = new();
     private DungeonBuildDemo? _build;
     private DefenseDemo? _demo;
     private bool _running;
@@ -321,7 +354,14 @@ else
     private bool _rotated;
     private string? _notice;
     private bool _showInvasion;
+    private bool _showHub;
+    private bool _showBriefing;
     private bool _runStarted;
+    private bool _catalogOpen;
+    private bool _digMode;
+    private bool _resultTutorialSignaled;
+    private bool _tutorialStartedForRun;
+    private WebEditorPhase _editorPhase = WebEditorPhase.Structure;
     private string _locale = WebDemoLocalization.Japanese;
 
     private bool IsBuilding => _demo is null;
@@ -330,12 +370,23 @@ else
     private DungeonState Board => _demo?.Board ?? _build!.Board;
     private DungeonBuildVisualState BuildState => _build!.ProductState;
     private BuildOption? SelectedBuildOption => _build?.BuildOptions.SingleOrDefault(x => x.Id == _selectedDefinitionId);
-    private string SelectedBuildLabel => SelectedBuildOption is null ? "配置物" : BuildOptionText(SelectedBuildOption.Id);
+    private string SelectedBuildLabel => SelectedBuildOption is null ? T("none") : BuildOptionText(SelectedBuildOption.Id);
+    private string BuildInteractionHint => _removeMode
+        ? T("remove_hint")
+        : _digMode
+            ? T("editor.add.passage")
+            : SelectedBuildOption is not null
+                ? F("place_hint_plain", SelectedBuildLabel)
+                : T("editor.choose_add");
     private string FirstContactText => BuildState.FirstDefenseContactPathIndex < 0 ? T("none") : $"route {BuildState.FirstDefenseContactPathIndex}";
 
     protected override async Task OnInitializedAsync()
     {
-        _content = await WebDefenseContentLoader.LoadAsync(Http, _cts.Token);
+        var defenseTask = WebDefenseContentLoader.LoadAsync(Http, _cts.Token);
+        var narrativeTask = WebNarrativeContentLoader.LoadAsync(Http, _cts.Token);
+        await Task.WhenAll(defenseTask, narrativeTask);
+        _content = await defenseTask;
+        _narrativeContent = await narrativeTask;
         _ = RunLoopAsync(_cts.Token);
     }
 
@@ -352,7 +403,135 @@ else
         _removeMode = false;
         _rotated = false;
         _notice = null;
+        _showHub = true;
+        _showBriefing = false;
+        _catalogOpen = false;
+        _digMode = false;
+        _editorPhase = WebEditorPhase.Structure;
+        _tutorial.Skip();
+        _tutorialStartedForRun = false;
         _runStarted = true;
+    }
+
+    private void ContinueCurrentRun()
+    {
+        if (_build is null) return;
+        _runStarted = true;
+        _showHub = true;
+        _showBriefing = false;
+        _showInvasion = false;
+        _running = false;
+        _notice = null;
+    }
+
+    private void ReturnToTitle()
+    {
+        // Keep the in-memory Run intact so returning to Title is navigation, not data loss.
+        _running = false;
+        _showInvasion = false;
+        _showBriefing = false;
+        _showHub = false;
+        _notice = null;
+        _runStarted = false;
+    }
+
+    private void OpenBuildFromHub()
+    {
+        _showHub = false;
+        _showBriefing = false;
+        _showInvasion = false;
+        _editorPhase = WebEditorPhase.Structure;
+        _catalogOpen = false;
+        _digMode = false;
+        _notice = null;
+        if (!_tutorialStartedForRun)
+        {
+            _tutorial.Start();
+            _tutorialStartedForRun = true;
+        }
+    }
+
+    private void OpenBuildFromBriefing()
+    {
+        _showBriefing = false;
+        _catalogOpen = false;
+        _notice = null;
+    }
+
+    private void OpenBriefingFromHub()
+    {
+        _showHub = false;
+        _showBriefing = true;
+        _showInvasion = false;
+    }
+
+    private void OpenBriefingFromEditor()
+    {
+        if (_tutorial.Active && _tutorial.Step == TutorialStep.Briefing)
+            _tutorial.Accept(TutorialSignal.EditorDoneToBriefing);
+        _catalogOpen = false;
+        _digMode = false;
+        _showBriefing = true;
+    }
+
+    private void StartDefenseFromBriefing()
+    {
+        if (_tutorial.Active && _tutorial.Step == TutorialStep.Combat)
+            _tutorial.Accept(TutorialSignal.DefenseStarted);
+        _showBriefing = false;
+        StartBuiltDefense();
+    }
+
+    private void OpenInvasionFromHub()
+    {
+        _showHub = false;
+        OpenInvasionDemo();
+    }
+
+    private void ReturnToHub()
+    {
+        _running = false;
+        _showInvasion = false;
+        _showBriefing = false;
+        _showHub = true;
+        _notice = null;
+    }
+
+    private void TutorialNext()
+    {
+        _tutorial.Accept(TutorialSignal.InfoNext);
+    }
+
+    private void SkipTutorial()
+    {
+        _tutorial.Skip();
+        _tutorialStartedForRun = true;
+    }
+
+    private void SetEditorPhase(WebEditorPhase phase)
+    {
+        _editorPhase = phase;
+        _catalogOpen = false;
+        _digMode = false;
+        _selectedDefinitionId = null;
+        _removeMode = false;
+        if (phase == WebEditorPhase.DefensePlacement && _tutorial.Active && _tutorial.Step == TutorialStep.DefensePhase)
+            _tutorial.Accept(TutorialSignal.DefensePhaseSelected);
+    }
+
+    private void ToggleCatalog()
+    {
+        _catalogOpen = !_catalogOpen;
+        _removeMode = false;
+    }
+
+    private void SelectDigMode()
+    {
+        _digMode = true;
+        _selectedDefinitionId = null;
+        _removeMode = false;
+        _catalogOpen = false;
+        _notice = null;
     }
 
     private async Task RunLoopAsync(CancellationToken cancellationToken)
@@ -368,8 +547,16 @@ else
                 previousTimestamp = nowTimestamp;
                 if (_demo is null) continue;
                 var changed = _demo.AdvanceFrame(deltaSeconds, _speed, _running);
-                if (_running && _demo.Simulation?.Outcome != DefenseOutcome.Running) _running = false;
-                if (changed) await InvokeAsync(StateHasChanged);
+                if (_running && _demo.Simulation?.Outcome != DefenseOutcome.Running)
+                {
+                    _running = false;
+                    if (!_resultTutorialSignaled && _tutorial.Active && _tutorial.Step == TutorialStep.Combat)
+                    {
+                        _tutorial.Accept(TutorialSignal.ResultShown);
+                        _resultTutorialSignaled = true;
+                    }
+                }
+                if (changed || _resultTutorialSignaled) await InvokeAsync(StateHasChanged);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
@@ -383,8 +570,7 @@ else
 
     private void CloseInvasionDemo()
     {
-        _showInvasion = false;
-        _notice = null;
+        ReturnToHub();
     }
 
     private void SetLocale(string locale)
@@ -396,8 +582,10 @@ else
     private void SelectBuildOption(BuildOption option)
     {
         _selectedDefinitionId = option.Id;
+        _digMode = false;
         _removeMode = false;
         _rotated = false;
+        _catalogOpen = false;
         _notice = null;
     }
 
@@ -415,15 +603,55 @@ else
     private void HandleCellClick(GridPoint point)
     {
         if (_build is null || !IsBuilding) return;
+
+        if (_tutorial.Active && _tutorial.Step == TutorialStep.GuardZone)
+        {
+            var selectedGuard = Board.Guards.FirstOrDefault(x => x.Position == point);
+            if (selectedGuard is not null)
+            {
+                _tutorial.Accept(TutorialSignal.GuardSelected);
+                _notice = T("tutorial.guard_zone_seen");
+                return;
+            }
+        }
+
         if (_removeMode)
         {
             RemoveAt(point);
             return;
         }
-        if (_selectedDefinitionId is null) return;
 
-        var result = _build.Place(_selectedDefinitionId, point.X, point.Y, _rotated);
-        _notice = result.Success ? F("placed", SelectedBuildLabel) : result.Error;
+        if (_editorPhase == WebEditorPhase.Structure && _digMode)
+        {
+            var result = _build.Dig(point.X, point.Y);
+            _notice = result.Success ? T("dug_passage") : result.Error;
+            if (result.Success && _tutorial.Active && _tutorial.Step == TutorialStep.Passage)
+                _tutorial.Accept(TutorialSignal.PassageCommitted);
+            return;
+        }
+
+        if (_selectedDefinitionId is null) return;
+        var option = SelectedBuildOption;
+        if (option is null) return;
+        var resultPlacement = _build.Place(_selectedDefinitionId, point.X, point.Y, _rotated);
+        _notice = resultPlacement.Success ? F("placed", SelectedBuildLabel) : resultPlacement.Error;
+        if (!resultPlacement.Success || !_tutorial.Active) return;
+
+        if (option.Kind == BuildKind.Room && _tutorial.Step == TutorialStep.Room)
+        {
+            _tutorial.Accept(TutorialSignal.RoomPlaced);
+            _selectedDefinitionId = null;
+        }
+        else if (option.Kind == BuildKind.Trap && _tutorial.Step == TutorialStep.Trap)
+        {
+            _tutorial.Accept(TutorialSignal.TrapPlaced);
+            _selectedDefinitionId = null;
+        }
+        else if (option.Kind == BuildKind.Guard && _tutorial.Step == TutorialStep.Guard)
+        {
+            _tutorial.Accept(TutorialSignal.GuardPlaced);
+            _selectedDefinitionId = null;
+        }
     }
 
     private void RemoveAt(GridPoint point)
@@ -442,6 +670,20 @@ else
 
     private void SetRemoveNotice(SemanticEditResult result, string label)
         => _notice = result.Success ? F("removed", label) : result.Error;
+
+    private void UndoBuild()
+    {
+        if (_build is null) return;
+        var result = _build.Undo();
+        _notice = result.Success ? T("undo_done") : result.Error;
+    }
+
+    private void RedoBuild()
+    {
+        if (_build is null) return;
+        var result = _build.Redo();
+        _notice = result.Success ? T("redo_done") : result.Error;
+    }
 
     private void ResetBuild()
     {
@@ -462,6 +704,7 @@ else
         }
 
         _demo = new DefenseDemo(_content, _build.Session);
+        _resultTutorialSignaled = false;
         _demo.Start();
         _running = true;
         _notice = null;
@@ -474,6 +717,12 @@ else
         _demo = null;
         _running = false;
         _notice = T("returned_build");
+    }
+
+    private void ToggleAutoBattle()
+    {
+        _demo?.ToggleAutoBattle();
+        _notice = T(_demo?.AutoBattleEnabled == true ? "auto_enabled" : "auto_disabled");
     }
 
     private void ToggleRun()
@@ -494,17 +743,83 @@ else
 
     private string BuildCellClass(GridPoint point)
     {
-        var classes = new List<string>(2);
+        var classes = new List<string>(4);
         if (Board.IsIngress(point)) classes.Add("ingress");
+        if (IsTutorialFocusCell(point)) classes.Add("tutorial-cell-focus");
         if (!IsBuilding || _build is null) return string.Join(' ', classes);
         if (_removeMode)
         {
             if (HasRemovable(point)) classes.Add("remove-target");
             return string.Join(' ', classes);
         }
+        if (_editorPhase == WebEditorPhase.Structure && _digMode)
+        {
+            classes.Add(_build.PreviewDig(point.X, point.Y).Success ? "build-valid" : "build-invalid");
+            return string.Join(' ', classes);
+        }
         if (_selectedDefinitionId is null) return string.Join(' ', classes);
+        var option = SelectedBuildOption;
+        if (option is null) return string.Join(' ', classes);
+        var allowed = _editorPhase == WebEditorPhase.Structure
+            ? option.Kind == BuildKind.Room
+            : option.Kind is BuildKind.Trap or BuildKind.Guard or BuildKind.Facility;
+        if (!allowed) return string.Join(' ', classes);
         classes.Add(_build.PreviewPlacement(_selectedDefinitionId, point.X, point.Y, _rotated).Success ? "build-valid" : "build-invalid");
         return string.Join(' ', classes);
+    }
+
+    private bool IsTutorialFocusCell(GridPoint point)
+    {
+        if (!_tutorial.Active || _build is null) return false;
+        var route = DungeonPathfinder.FindRoute(Board);
+        return _tutorial.VisualState.FocusIntent switch
+        {
+            TutorialFocusIntent.Entrance => Board.IsIngress(point),
+            TutorialFocusIntent.CurrentRoute => route.Contains(point),
+            TutorialFocusIntent.PassagePlacementAnchor => FindFirstValidDigCell() is { } dig && dig == point,
+            TutorialFocusIntent.RoomPlacementFootprint => FindFirstValidPlacement(DefenseSliceBuildCatalog.GuardRoom.Id) is { } room && RoomFootprint(room).Contains(point),
+            TutorialFocusIntent.TrapRouteCell => FindFirstValidPlacement(DefenseSliceBuildCatalog.SpikeTrap.Id) is { } trap && trap == point,
+            TutorialFocusIntent.GuardInterceptCell => FindFirstValidPlacement(DefenseSliceBuildCatalog.SkeletonWarrior.Id) is { } guard && guard == point,
+            TutorialFocusIntent.LatestGuard => Board.Guards.LastOrDefault()?.Position == point,
+            _ => false,
+        };
+    }
+
+    private GridPoint? FindFirstValidDigCell()
+    {
+        if (_build is null) return null;
+        for (var y = 0; y < Board.Height; y++)
+        for (var x = 0; x < Board.Width; x++)
+        {
+            var dig = _build.PreviewDig(x, y);
+            if (!dig.Success) continue;
+            for (var roomY = 0; roomY < dig.State.Height; roomY++)
+            for (var roomX = 0; roomX < dig.State.Width; roomX++)
+            {
+                var room = DefenseEditCommandService.Evaluate(
+                    dig.State,
+                    new PlaceRoomCommand("WEB-TUTORIAL-PREVIEW", DefenseSliceBuildCatalog.GuardRoom.Id, roomX, roomY));
+                if (room.Success) return new GridPoint(x, y);
+            }
+        }
+        return null;
+    }
+
+    private GridPoint? FindFirstValidPlacement(string definitionId)
+    {
+        if (_build is null) return null;
+        for (var y = 0; y < Board.Height; y++)
+            for (var x = 0; x < Board.Width; x++)
+                if (_build.PreviewPlacement(definitionId, x, y).Success) return new GridPoint(x, y);
+        return null;
+    }
+
+    private IReadOnlyList<GridPoint> RoomFootprint(GridPoint origin)
+    {
+        var room = DefenseSliceBuildCatalog.GuardRoom;
+        var width = _rotated ? room.Height : room.Width;
+        var height = _rotated ? room.Width : room.Height;
+        return Enumerable.Range(0, height).SelectMany(y => Enumerable.Range(0, width).Select(x => new GridPoint(origin.X + x, origin.Y + y))).ToArray();
     }
 
     private bool HasRemovable(GridPoint point)

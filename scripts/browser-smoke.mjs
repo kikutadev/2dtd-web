@@ -13,7 +13,11 @@ const port = Number(process.env.WEB_SMOKE_PORT ?? '5279');
 const debugPort = Number(process.env.WEB_SMOKE_DEBUG_PORT ?? '19433');
 const externalUrl = process.env.WEB_SMOKE_BASE_URL?.trim();
 const capturePath = process.env.WEB_SMOKE_CAPTURE_PATH?.trim();
+const productCaptureWidth = Number(process.env.WEB_SMOKE_PRODUCT_CAPTURE_WIDTH ?? '844');
+const productCaptureHeight = Number(process.env.WEB_SMOKE_PRODUCT_CAPTURE_HEIGHT ?? '390');
 const titleCapturePath = process.env.WEB_SMOKE_TITLE_CAPTURE_PATH?.trim();
+const hubCapturePath = process.env.WEB_SMOKE_HUB_CAPTURE_PATH?.trim();
+const briefingCapturePath = process.env.WEB_SMOKE_BRIEFING_CAPTURE_PATH?.trim();
 const invasionScoutCapturePath = process.env.WEB_SMOKE_INVASION_SCOUT_CAPTURE_PATH?.trim();
 const invasionResultCapturePath = process.env.WEB_SMOKE_INVASION_RESULT_CAPTURE_PATH?.trim();
 const invasionCaptureWidth = Number(process.env.WEB_SMOKE_INVASION_CAPTURE_WIDTH ?? '844');
@@ -84,7 +88,7 @@ async function waitForExpression(expression, timeoutMs, label) {
   return waitUntil(async () => await evaluate(expression), timeoutMs, label);
 }
 
-async function captureViewport(relativePath, width = 844, height = 390) {
+async function captureViewport(relativePath, width = productCaptureWidth, height = productCaptureHeight) {
   if (!relativePath) return;
   await cdp('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: true });
   await new Promise(resolve => setTimeout(resolve, 250));
@@ -184,9 +188,12 @@ try {
   await cdp('Page.navigate', { url });
   try {
     await waitForExpression(`document.body?.innerText.includes('新規Runを始める')`, 15_000, 'Title screen');
-    await captureViewport(titleCapturePath, 844, 390);
+    await captureViewport(titleCapturePath);
     await clickButtonContaining('新規Runを始める');
-    await waitForExpression(`document.body?.innerText.includes('ダンジョン構築')`, 5_000, 'Build phase');
+    await waitForExpression(`document.body?.innerText.includes('地下領域') && document.body?.innerText.includes('ダンジョン編集')`, 5_000, 'Hub');
+    await captureViewport(hubCapturePath);
+    await clickButtonContaining('ダンジョン編集');
+    await waitForExpression(`document.querySelector('[data-tutorial-step="Entrance"]')`, 5_000, 'Tutorial entrance');
   } catch (error) {
     console.error('browser-diagnostics=', browserDiagnostics.join('\n'));
     console.error('browser-body=', await evaluate(`document.body?.innerText ?? ''`));
@@ -197,24 +204,40 @@ try {
   const desktopHasPageOverflow = await evaluate(`document.documentElement.scrollWidth > window.innerWidth + 1`);
   if (desktopHasPageOverflow) throw new Error('Unexpected document-level horizontal overflow on desktop viewport');
 
-  await clickFirst('.cell.build-valid');
-  await waitForExpression(`document.body.innerText.includes('棘罠を配置しました')`, 3_000, 'Trap placement');
+  await clickButtonContaining('›');
+  await waitForExpression(`document.querySelector('[data-tutorial-step="Route"]')`, 2_000, 'Tutorial route');
+  await clickButtonContaining('›');
+  await waitForExpression(`document.querySelector('[data-tutorial-step="Passage"]')`, 2_000, 'Tutorial passage');
+  await clickButtonContaining('+');
+  await clickButtonContaining('通路を掘る');
+  await clickFirst('.cell.tutorial-cell-focus.build-valid');
+  await waitForExpression(`document.querySelector('[data-tutorial-step="Room"]')`, 3_000, 'Tutorial room');
 
+  await clickButtonContaining('+');
+  await clickButtonContaining('守備室');
+  await clickFirst('.cell.tutorial-cell-focus.build-valid');
+  await waitForExpression(`document.querySelector('[data-tutorial-step="DefensePhase"]')`, 3_000, 'Tutorial defense phase');
+
+  await clickButtonContaining('防衛配置');
+  await waitForExpression(`document.querySelector('[data-tutorial-step="Trap"]')`, 2_000, 'Tutorial trap');
+  await clickButtonContaining('+');
+  await clickButtonContaining('棘罠');
+  await clickFirst('.cell.tutorial-cell-focus.build-valid');
+  await waitForExpression(`document.querySelector('[data-tutorial-step="Guard"]')`, 3_000, 'Tutorial guard');
+
+  await clickButtonContaining('+');
   await clickButtonContaining('スケルトン戦士');
-  await clickFirst('.cell.build-valid');
-  await waitForExpression(`document.body.innerText.includes('スケルトン戦士を配置しました')`, 3_000, 'Guard placement');
-
-  await clickButtonContaining('矢狭間');
-  await clickFirst('.cell.build-valid');
-  await waitForExpression(`document.body.innerText.includes('矢狭間を配置しました')`, 3_000, 'Facility placement');
-
-  const countBeforeBattle = await evaluate(`document.querySelector('.status-row > div:last-child strong')?.textContent.trim()`);
-  if (countBeforeBattle !== '3') throw new Error(`Expected 3 placements before battle, got ${countBeforeBattle}`);
+  await clickFirst('.cell.tutorial-cell-focus.build-valid');
+  await waitForExpression(`document.querySelector('[data-tutorial-step="GuardZone"]')`, 3_000, 'Tutorial guard zone');
+  await clickFirst('.cell.tutorial-cell-focus');
+  await waitForExpression(`document.querySelector('[data-tutorial-step="Briefing"]')`, 3_000, 'Tutorial briefing');
 
   await captureViewport(buildCapturePath);
-
-  await clickButtonContaining('この構成で防衛開始');
-  await waitForExpression(`document.body.innerText.includes('防衛中')`, 5_000, 'Defense phase');
+  await clickButtonContaining('完了');
+  await waitForExpression(`document.querySelector('[data-tutorial-step="Combat"]') && document.body.innerText.includes('最初の侵入者')`, 3_000, 'Assault briefing');
+  await captureViewport(briefingCapturePath);
+  await clickButtonContaining('防衛開始');
+  await waitForExpression(`document.querySelector('.combat-topbar') && document.body.innerText.includes('Wave')`, 5_000, 'Defense phase');
   await clickButtonContaining('3×');
   await captureViewport(battleCapturePath);
 
@@ -224,35 +247,30 @@ try {
     if (text.includes('迎撃失敗')) return '迎撃失敗';
     return false;
   }, 20_000, 'Defense result');
-
+  await waitForExpression(`document.querySelector('[data-tutorial-step="Result"]')`, 3_000, 'Tutorial result');
   await captureViewport(defenseCapturePath);
+  await clickButtonContaining('›');
+  await waitForExpression(`!document.querySelector('.tutorial-spirit-overlay')`, 2_000, 'Tutorial complete');
 
-  await clickButtonContaining('構築に戻る');
-  await waitForExpression(`document.body.innerText.includes('ダンジョン構築')`, 5_000, 'Return to Build');
-
-  const countAfterReturn = await evaluate(`document.querySelector('.status-row > div:last-child strong')?.textContent.trim()`);
-  if (countAfterReturn !== '3') throw new Error(`Expected edited build to retain 3 placements, got ${countAfterReturn}`);
-
-  await clickButtonContaining('配置を削除');
-  await clickFirst('.cell.remove-target');
-  const countAfterRemove = await waitUntil(async () => {
-    const count = await evaluate(`document.querySelector('.status-row > div:last-child strong')?.textContent.trim()`);
-    return count === '2' ? count : false;
-  }, 3_000, 'Remove after return');
-
+  await clickButtonContaining('ホーム');
+  await waitForExpression(`document.body.innerText.includes('地下領域')`, 3_000, 'Return to Hub');
+  await clickButtonContaining('スタート画面');
+  await waitForExpression(`document.body.innerText.includes('新規Runを始める') && [...document.querySelectorAll('button')].some(x => x.textContent.includes('続きから') && !x.disabled)`, 3_000, 'Return to Title with resumable in-memory Run');
+  await clickButtonContaining('続きから');
+  await waitForExpression(`document.body.innerText.includes('地下領域') && document.body.innerText.includes('ダンジョン編集')`, 3_000, 'Continue current Run from Title');
   await clickButtonContaining('EN');
-  await waitForExpression(`document.body.innerText.includes('Dungeon Build') && document.body.innerText.includes('Spike Trap')`, 3_000, 'English locale');
+  await waitForExpression(`document.body.innerText.includes('Dungeon Domain') && document.body.innerText.includes('Edit Dungeon')`, 3_000, 'English Hub locale');
 
   await cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
   await new Promise(resolve => setTimeout(resolve, 250));
-  const mobileMetrics = await evaluate(`(() => ({ viewport: window.innerWidth, page: document.documentElement.scrollWidth, boardClient: document.querySelector('.board-wrap')?.clientWidth ?? 0, boardScroll: document.querySelector('.board-wrap')?.scrollWidth ?? 0 }))()`);
+  const mobileMetrics = await evaluate(`(() => ({ viewport: window.innerWidth, page: document.documentElement.scrollWidth }))()`);
   if (mobileMetrics.page > mobileMetrics.viewport + 1) throw new Error(`Unexpected document-level mobile overflow: ${JSON.stringify(mobileMetrics)}`);
-  if (mobileMetrics.boardScroll <= mobileMetrics.boardClient) throw new Error(`Expected wide board overflow to remain contained inside board-wrap: ${JSON.stringify(mobileMetrics)}`);
+  await clickButtonContaining('日本語');
 
-  await clickButtonContaining('Invasion');
+  await clickButtonContaining('侵攻');
   await waitForExpression(`document.body.innerText.includes('侵攻先') && document.body.innerText.includes('黒鉄坑道')`, 8_000, 'Invasion locations');
   await clickButtonContaining('確認');
-  await waitForExpression(`document.body.innerText.includes('偵察') && document.body.innerText.includes('地下1階')`, 3_000, 'Invasion scouting');
+  await waitForExpression(`document.querySelector('.scout-card .invasion-dungeon-map') && document.body.innerText.includes('地下1階')`, 3_000, 'Invasion scouting');
   const scoutMapSemantics = await evaluate(`(() => {
     const map = document.querySelector('.scout-card .invasion-dungeon-map');
     return {
@@ -378,15 +396,15 @@ try {
   }
 
   await clickButtonContaining('偵察へ戻る');
-  await waitForExpression(`document.body.innerText.includes('偵察') && document.body.innerText.includes('黒鉄坑道')`, 3_000, 'Return to invasion scouting');
+  await waitForExpression(`document.querySelector('.scout-card .invasion-dungeon-map') && document.body.innerText.includes('黒鉄坑道')`, 3_000, 'Return to invasion scouting');
   await clickButtonContaining('EN');
   await waitForExpression(`document.body.innerText.includes('Targets') && document.body.innerText.includes('Black Iron Mine')`, 3_000, 'Invasion English locale');
   await clickButtonContaining('Targets');
   await waitForExpression(`document.body.innerText.includes('Targets') && document.body.innerText.includes('Black Iron Mine')`, 3_000, 'Return to invasion locations');
   await clickButtonContaining('Defense');
-  await waitForExpression(`document.body.innerText.includes('Dungeon Build')`, 3_000, 'Return to Defense mode');
+  await waitForExpression(`document.body.innerText.includes('Dungeon Domain') || document.body.innerText.includes('地下領域')`, 3_000, 'Return to Hub from invasion');
 
-  console.log(`browser-smoke=ok defense=${outcome} placements=3->${countAfterRemove} locale=en mobile=${mobileMetrics.viewport}px invasion=${invasionOutcome} invasionLocale=en`);
+  console.log(`browser-smoke=ok tutorial=complete defense=${outcome} locale=ja/en mobile=${mobileMetrics.viewport}px invasion=${invasionOutcome} invasionLocale=en`);
 } finally {
   try { socket?.close(); } catch {}
   if (staticServer) await new Promise(resolve => staticServer.close(resolve));

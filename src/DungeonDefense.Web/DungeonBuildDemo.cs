@@ -46,6 +46,20 @@ internal sealed class DungeonBuildDemo
         _nextInstanceNumber = 1;
     }
 
+    /// <summary>Evaluates a one-cell passage extension through the production editor rules.</summary>
+    public SemanticEditResult PreviewDig(int x, int y)
+        => Session.EditorCommands.Preview(new DigPathCommand([(x, y)]));
+
+    /// <summary>Digs one passage cell through the production semantic command path.</summary>
+    public SemanticEditResult Dig(int x, int y)
+        => Session.EditorCommands.Execute(new DigPathCommand([(x, y)]));
+
+    public SemanticEditResult Undo()
+        => Session.EditorCommands.Execute(new UndoEditCommand());
+
+    public SemanticEditResult Redo()
+        => Session.EditorCommands.Execute(new RedoEditCommand());
+
     /// <summary>Evaluates a candidate placement through the production semantic command service without mutating the board.</summary>
     public SemanticEditResult PreviewPlacement(string definitionId, int x, int y, bool rotated = false)
     {

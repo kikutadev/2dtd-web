@@ -1,0 +1,30 @@
+@using DungeonDefense.Presentation
+
+@if (Flow.Active && Flow.Step != TutorialStep.Complete)
+{
+    var definition = Content.Tutorial[Flow.Step];
+    <aside class="tutorial-spirit-overlay" data-tutorial-step="@Flow.Step">
+        <img src="@WebProductAssets.Resolve(ProductAssetIdentity.DarkSpiritPortrait(definition.Expression))" alt="@T("spirit.speaker")" />
+        <div class="tutorial-spirit-copy">
+            <strong>◆ @T("spirit.speaker")</strong>
+            <p>@T(definition.MessageKey)</p>
+        </div>
+        <div class="tutorial-spirit-actions">
+            @if (Flow.VisualState.RequiresExplicitNext)
+            {
+                <button class="primary" @onclick="OnNext">›</button>
+            }
+            <button @onclick="OnSkip">@T("tutorial.skip")</button>
+        </div>
+    </aside>
+}
+
+@code {
+    [Parameter, EditorRequired] public TutorialFlow Flow { get; set; } = null!;
+    [Parameter, EditorRequired] public NarrativePresentationContent Content { get; set; } = null!;
+    [Parameter, EditorRequired] public string Locale { get; set; } = WebDemoLocalization.Japanese;
+    [Parameter] public EventCallback OnNext { get; set; }
+    [Parameter] public EventCallback OnSkip { get; set; }
+
+    private string T(string key) => WebDemoLocalization.Text(Locale, key);
+}

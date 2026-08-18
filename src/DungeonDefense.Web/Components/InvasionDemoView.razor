@@ -37,7 +37,7 @@ else
 
         @if (_demo.Simulation is null)
         {
-            <main class="game-layout invasion-layout">
+            <main class="game-layout invasion-layout invasion-preparation stage-@_preBattleStage.ToString().ToLowerInvariant()">
                 <section class="world-card invasion-briefing">
                     @if (_preBattleStage == InvasionPreparationStage.Locations)
                     {
@@ -135,7 +135,7 @@ else
         }
         else if (_demo.ResultState is { } result)
         {
-            <main class="game-layout invasion-layout">
+            <main class="game-layout invasion-layout invasion-result-layout">
                 <section class="world-card invasion-result-screen">
                     <div class="world-heading"><div><strong>@T("result")</strong><span>@LocationName(result.LocationId) · @FloorName(result.FloorDepth) · @ObjectiveName(result.Objective)</span></div></div>
                     <div class="invasion-result-body @OutcomeClass">
@@ -186,7 +186,7 @@ else
         else
         {
             var battle = _demo.VisualState!;
-            <main class="game-layout invasion-layout">
+            <main class="game-layout invasion-layout invasion-battle-layout">
                 <section class="world-card invasion-battle">
                     <div class="world-heading">
                         <div><strong>@T("battle")</strong><span>@LocationName(_demo.SelectedLocation.Id) · @FloorName(_demo.SelectedFloor)</span></div>
