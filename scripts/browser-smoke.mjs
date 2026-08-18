@@ -195,6 +195,7 @@ try {
     // synchronized production assets while billing remains disabled on the Web capability boundary.
     await clickButtonContaining('ショップ');
     await waitForExpression(`document.body?.innerText.includes('蒼核の儀式') && document.querySelectorAll('.shop-preview-grid img').length >= 13`, 5_000, 'Shop paid theme preview');
+    await waitForExpression(`[...document.querySelectorAll('.shop-preview-grid img')].length >= 13 && [...document.querySelectorAll('.shop-preview-grid img')].every(x => x.complete && x.naturalWidth > 0)`, 12_000, 'Shop paid theme image loading');
     const shopSemantics = await evaluate(`(() => ({
       previews: document.querySelectorAll('.shop-preview-grid img').length,
       themed: [...document.querySelectorAll('.shop-preview-grid img')].filter(x => (x.getAttribute('src') || '').includes('/themes/azure_core_rite/')).length,
