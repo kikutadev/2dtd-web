@@ -123,6 +123,44 @@ public sealed record CampaignChallengeBestFile(
     [property: JsonPropertyName("key")] string Key,
     [property: JsonPropertyName("best_score")] int BestScore);
 
+
+public sealed record CampaignDiscoveryFile(
+    [property: JsonPropertyName("category")] string Category,
+    [property: JsonPropertyName("id")] string Id);
+
+public sealed record CampaignDefenseRecordFile(
+    [property: JsonPropertyName("record_id")] string RecordId,
+    [property: JsonPropertyName("day")] int Day,
+    [property: JsonPropertyName("region_id")] string RegionId,
+    [property: JsonPropertyName("outcome")] string Outcome,
+    [property: JsonPropertyName("core_hp")] int CoreHp,
+    [property: JsonPropertyName("core_max_hp")] int CoreMaxHp,
+    [property: JsonPropertyName("deepest_floor_depth")] int DeepestFloorDepth);
+
+public sealed record CampaignInvasionRecordFile(
+    [property: JsonPropertyName("record_id")] string RecordId,
+    [property: JsonPropertyName("day")] int Day,
+    [property: JsonPropertyName("region_id")] string RegionId,
+    [property: JsonPropertyName("location_id")] string LocationId,
+    [property: JsonPropertyName("floor_id")] string FloorId,
+    [property: JsonPropertyName("outcome")] string Outcome,
+    [property: JsonPropertyName("granted_loot")] CampaignResourceFile GrantedLoot,
+    [property: JsonPropertyName("first_clear")] bool FirstClear);
+
+public sealed record CampaignChallengeRecordFile(
+    [property: JsonPropertyName("record_id")] string RecordId,
+    [property: JsonPropertyName("day")] int Day,
+    [property: JsonPropertyName("region_id")] string RegionId,
+    [property: JsonPropertyName("archive_id")] string ArchiveId,
+    [property: JsonPropertyName("mode")] string Mode,
+    [property: JsonPropertyName("outcome")] string Outcome,
+    [property: JsonPropertyName("score")] int Score);
+
+
+public sealed record CampaignEquippedCosmeticFile(
+    [property: JsonPropertyName("target_key")] string TargetKey,
+    [property: JsonPropertyName("product_id")] string ProductId);
+
 public sealed record CampaignSaveFile(
     [property: JsonPropertyName("schema_version")] int SchemaVersion,
     [property: JsonPropertyName("kind")] string Kind,
@@ -139,4 +177,10 @@ public sealed record CampaignSaveFile(
     [property: JsonPropertyName("active_invasion")] CampaignActiveInvasionFile? ActiveInvasion = null,
     [property: JsonPropertyName("cleared_dungeons")] IReadOnlyList<CampaignClearedDungeonFile>? ClearedDungeons = null,
     [property: JsonPropertyName("challenge_best_scores")] IReadOnlyList<CampaignChallengeBestFile>? ChallengeBestScores = null,
-    [property: JsonPropertyName("seen_narrative_beat_ids")] IReadOnlyList<string>? SeenNarrativeBeatIds = null);
+    [property: JsonPropertyName("seen_narrative_beat_ids")] IReadOnlyList<string>? SeenNarrativeBeatIds = null,
+    [property: JsonPropertyName("discovery")] IReadOnlyList<CampaignDiscoveryFile>? Discovery = null,
+    [property: JsonPropertyName("defense_records")] IReadOnlyList<CampaignDefenseRecordFile>? DefenseRecords = null,
+    [property: JsonPropertyName("invasion_records")] IReadOnlyList<CampaignInvasionRecordFile>? InvasionRecords = null,
+    [property: JsonPropertyName("challenge_records")] IReadOnlyList<CampaignChallengeRecordFile>? ChallengeRecords = null,
+    [property: JsonPropertyName("owned_cosmetic_ids")] IReadOnlyList<string>? OwnedCosmeticIds = null,
+    [property: JsonPropertyName("equipped_cosmetics")] IReadOnlyList<CampaignEquippedCosmeticFile>? EquippedCosmetics = null);

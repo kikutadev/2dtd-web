@@ -27,7 +27,7 @@ public static class CampaignSaveService
         var resources = state.Resources;
         var realtime = state.Realtime;
         return new CampaignSaveFile(
-            3,
+            4,
             "campaign_save",
             contentVersion,
             state.Day,
@@ -67,13 +67,25 @@ public static class CampaignSaveService
                 .ToArray(),
             (narrativeProgress?.SeenBeatIds ?? new HashSet<string>(StringComparer.Ordinal))
                 .OrderBy(x => x, StringComparer.Ordinal)
-                .ToArray());
+                .ToArray(),
+            state.Records.Discovery
+                .OrderBy(x => x.Category).ThenBy(x => x.Id, StringComparer.Ordinal)
+                .Select(x => new CampaignDiscoveryFile(x.Category.ToString(), x.Id)).ToArray(),
+            state.Records.DefenseRecords
+                .Select(x => new CampaignDefenseRecordFile(x.RecordId, x.Day, x.RegionId, x.Outcome.ToString(), x.CoreHp, x.CoreMaxHp, x.DeepestFloorDepth)).ToArray(),
+            state.Records.InvasionRecords
+                .Select(x => new CampaignInvasionRecordFile(x.RecordId, x.Day, x.RegionId, x.LocationId, x.FloorId, x.Outcome.ToString(), ToFile(x.GrantedLoot), x.FirstClear)).ToArray(),
+            state.Records.ChallengeRecords
+                .Select(x => new CampaignChallengeRecordFile(x.RecordId, x.Day, x.RegionId, x.ArchiveId, x.Mode.ToString(), x.Outcome.ToString(), x.Score)).ToArray(),
+            state.Cosmetics.OwnedProductIds.OrderBy(x => x, StringComparer.Ordinal).ToArray(),
+            state.Cosmetics.EquippedByTarget.OrderBy(x => x.Key, StringComparer.Ordinal)
+                .Select(x => new CampaignEquippedCosmeticFile(x.Key, x.Value)).ToArray());
     }
 
     public static CampaignSaveImportResult Import(CampaignSaveFile file, string expectedContentVersion)
     {
         ArgumentNullException.ThrowIfNull(file);
-        if (file.SchemaVersion != 3 || !string.Equals(file.Kind, "campaign_save", StringComparison.Ordinal))
+        if (file.SchemaVersion is not (3 or 4) || !string.Equals(file.Kind, "campaign_save", StringComparison.Ordinal))
             throw new InvalidDataException("Unsupported campaign save schema/kind.");
         if (!string.Equals(file.ContentVersion, expectedContentVersion, StringComparison.Ordinal))
             throw new InvalidDataException($"Campaign save content version mismatch: {file.ContentVersion} != {expectedContentVersion}.");
@@ -120,6 +132,19 @@ public static class CampaignSaveService
         {
             throw new InvalidDataException($"Campaign narrative progress is invalid: {ex.Message}", ex);
         }
+        var records = new CampaignRecordBook(
+            (file.Discovery ?? []).Select(x => new CampaignDiscoveryEntry(ParseDiscoveryCategory(x.Category), x.Id)),
+            (file.DefenseRecords ?? []).Select(x => new DefenseRecordSnapshot(
+                x.RecordId, x.Day, x.RegionId, ParseDefenseOutcome(x.Outcome), x.CoreHp, x.CoreMaxHp, x.DeepestFloorDepth)),
+            (file.InvasionRecords ?? []).Select(x => new InvasionRecordSnapshot(
+                x.RecordId, x.Day, x.RegionId, x.LocationId, x.FloorId, ParseInvasionOutcome(x.Outcome), ToDomain(x.GrantedLoot), x.FirstClear)),
+            (file.ChallengeRecords ?? []).Select(x => new ChallengeRecordSnapshot(
+                x.RecordId, x.Day, x.RegionId, x.ArchiveId, ParseChallengeMode(x.Mode), ParseDefenseOutcome(x.Outcome), x.Score)));
+
+        var cosmetics = new CampaignCosmeticState(
+            file.OwnedCosmeticIds ?? [],
+            (file.EquippedCosmetics ?? []).ToDictionary(x => x.TargetKey, x => x.ProductId, StringComparer.Ordinal));
+
         var state = new CampaignState(
             file.Day,
             file.RegionId,
@@ -131,7 +156,9 @@ public static class CampaignSaveService
             invasionProgress,
             realtime,
             clearedDungeons,
-            challengeBestScores);
+            challengeBestScores,
+            records,
+            cosmetics);
         return new CampaignSaveImportResult(
             state,
             dungeon.SelectedFloorId,
@@ -225,6 +252,26 @@ public static class CampaignSaveService
                 ToOptionalDomain(x.SourcePosition), x.SourceDefinitionId)).ToArray());
         return new SuspendedInvasionState(file.LocationId, snapshot, file.IsFirstClearScenario, file.IsResolved);
     }
+
+    private static CampaignDiscoveryCategory ParseDiscoveryCategory(string value)
+        => Enum.TryParse<CampaignDiscoveryCategory>(value, ignoreCase: false, out var category)
+            ? category
+            : throw new InvalidDataException($"Unknown campaign discovery category: {value}.");
+
+    private static DefenseOutcome ParseDefenseOutcome(string value)
+        => Enum.TryParse<DefenseOutcome>(value, ignoreCase: false, out var outcome)
+            ? outcome
+            : throw new InvalidDataException($"Unknown defense record outcome: {value}.");
+
+    private static InvasionOutcome ParseInvasionOutcome(string value)
+        => Enum.TryParse<InvasionOutcome>(value, ignoreCase: false, out var outcome)
+            ? outcome
+            : throw new InvalidDataException($"Unknown invasion record outcome: {value}.");
+
+    private static ChallengeMode ParseChallengeMode(string value)
+        => Enum.TryParse<ChallengeMode>(value, ignoreCase: false, out var mode)
+            ? mode
+            : throw new InvalidDataException($"Unknown challenge record mode: {value}.");
 
     private static InvasionUnitArchetype ParseArchetype(string value)
         => Enum.TryParse<InvasionUnitArchetype>(value, ignoreCase: false, out var archetype)

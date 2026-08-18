@@ -180,7 +180,9 @@ public sealed class CampaignState
         IEnumerable<InvasionLocationProgress>? invasionProgress = null,
         CampaignRealtimeState? realtime = null,
         IEnumerable<ClearedDungeonArchive>? clearedDungeons = null,
-        IReadOnlyDictionary<string, int>? challengeBestScores = null)
+        IReadOnlyDictionary<string, int>? challengeBestScores = null,
+        CampaignRecordBook? records = null,
+        CampaignCosmeticState? cosmetics = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(day);
         if (string.IsNullOrWhiteSpace(regionId)) throw new ArgumentException("Region ID is required.", nameof(regionId));
@@ -212,6 +214,9 @@ public sealed class CampaignState
             ? new Dictionary<string, int>(StringComparer.Ordinal)
             : new Dictionary<string, int>(challengeBestScores, StringComparer.Ordinal);
         if (_challengeBestScores.Values.Any(x => x < 0)) throw new ArgumentOutOfRangeException(nameof(challengeBestScores));
+        Records = records?.Clone() ?? new CampaignRecordBook();
+        Cosmetics = cosmetics?.Clone() ?? new CampaignCosmeticState();
+        Records.Discover(CampaignDiscoveryCategory.Region, RegionId);
     }
 
     public int Day { get; private set; }
@@ -225,6 +230,8 @@ public sealed class CampaignState
     public CampaignRealtimeState Realtime { get; }
     public IReadOnlyList<ClearedDungeonArchive> ClearedDungeons => _clearedDungeons.Values.OrderBy(x => x.RegionId, StringComparer.Ordinal).Select(x => x.Clone()).ToArray();
     public IReadOnlyDictionary<string, int> ChallengeBestScores => _challengeBestScores;
+    public CampaignRecordBook Records { get; }
+    public CampaignCosmeticState Cosmetics { get; }
 
     public bool HasUnlock(string id) => _unlocks.Contains(id);
     public bool HasCompletedResearch(string id) => _completedResearch.Contains(id);
@@ -237,7 +244,7 @@ public sealed class CampaignState
         => _invasionProgress.TryGetValue(locationId, out var progress) && progress.ClearedFloorIds.Contains(floorId);
 
     public CampaignState Clone()
-        => new(Day, RegionId, Dungeon, Resources, _completedResearch, _unlocks, _speciesLevels, _invasionProgress.Values, Realtime, _clearedDungeons.Values, _challengeBestScores);
+        => new(Day, RegionId, Dungeon, Resources, _completedResearch, _unlocks, _speciesLevels, _invasionProgress.Values, Realtime, _clearedDungeons.Values, _challengeBestScores, Records, Cosmetics);
 
     public void ReplaceDungeon(PlayerDungeonState dungeon)
     {
@@ -292,6 +299,7 @@ public sealed class CampaignState
         RegionId = regionId;
         Day = 1;
         Dungeon = dungeon.Clone();
+        Records.Discover(CampaignDiscoveryCategory.Region, regionId);
     }
 
     public int ChallengeBestScore(string archiveId, ChallengeMode mode)

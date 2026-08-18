@@ -7,7 +7,7 @@ namespace DungeonDefense.Infrastructure;
 
 public static class CampaignSaveCodec
 {
-    public const int SchemaVersion = 3;
+    public const int SchemaVersion = 4;
     public const int MaxFileBytes = 8 * 1_048_576;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -69,6 +69,12 @@ public static class CampaignSaveCodec
                 .Select(x => x with { Dungeon = PlayerDungeonSaveCodec.Parse(PlayerDungeonSaveCodec.Serialize(x.Dungeon)) }).ToArray(),
             ChallengeBestScores = (file.ChallengeBestScores ?? []).OrderBy(x => x.Key, StringComparer.Ordinal).ToArray(),
             SeenNarrativeBeatIds = (file.SeenNarrativeBeatIds ?? []).OrderBy(x => x, StringComparer.Ordinal).ToArray(),
+            Discovery = (file.Discovery ?? []).OrderBy(x => x.Category, StringComparer.Ordinal).ThenBy(x => x.Id, StringComparer.Ordinal).ToArray(),
+            DefenseRecords = (file.DefenseRecords ?? []).ToArray(),
+            InvasionRecords = (file.InvasionRecords ?? []).ToArray(),
+            ChallengeRecords = (file.ChallengeRecords ?? []).ToArray(),
+            OwnedCosmeticIds = (file.OwnedCosmeticIds ?? []).OrderBy(x => x, StringComparer.Ordinal).ToArray(),
+            EquippedCosmetics = (file.EquippedCosmetics ?? []).OrderBy(x => x.TargetKey, StringComparer.Ordinal).ToArray(),
         };
         return JsonSerializer.Serialize(canonical, JsonContext.CampaignSaveFile).Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd() + "\n";
     }
@@ -101,7 +107,7 @@ public static class CampaignSaveCodec
 
     private static void Validate(CampaignSaveFile file)
     {
-        if (file.SchemaVersion != SchemaVersion) throw new InvalidDataException($"Unsupported campaign save schema_version: {file.SchemaVersion}.");
+        if (file.SchemaVersion is not (3 or SchemaVersion)) throw new InvalidDataException($"Unsupported campaign save schema_version: {file.SchemaVersion}.");
         if (!string.Equals(file.Kind, "campaign_save", StringComparison.Ordinal)) throw new InvalidDataException($"Unexpected campaign save kind: {file.Kind}.");
         if (string.IsNullOrWhiteSpace(file.ContentVersion)) throw new InvalidDataException("content_version is required.");
         if (file.Day <= 0) throw new InvalidDataException("day must be positive.");
@@ -137,7 +143,31 @@ public static class CampaignSaveCodec
         ValidateActiveInvasion(file.ActiveInvasion);
         ValidateClearedDungeons(file.ClearedDungeons);
         ValidateChallengeBestScores(file.ChallengeBestScores);
+        ValidateRecords(file);
         _ = PlayerDungeonSaveCodec.Serialize(file.Dungeon);
+    }
+
+    private static void ValidateRecords(CampaignSaveFile file)
+    {
+        var discovery = file.Discovery ?? [];
+        if (discovery.Any(x => string.IsNullOrWhiteSpace(x.Category) || string.IsNullOrWhiteSpace(x.Id)))
+            throw new InvalidDataException("Invalid campaign discovery entry.");
+        EnsureUnique(discovery.Select(x => $"{x.Category}|{x.Id}"), "campaign discovery entry");
+
+        foreach (var record in file.DefenseRecords ?? [])
+            if (string.IsNullOrWhiteSpace(record.RecordId) || record.Day <= 0 || string.IsNullOrWhiteSpace(record.RegionId) || record.CoreHp < 0 || record.CoreMaxHp <= 0 || record.CoreHp > record.CoreMaxHp || record.DeepestFloorDepth <= 0)
+                throw new InvalidDataException("Invalid defense record entry.");
+        foreach (var record in file.InvasionRecords ?? [])
+            if (string.IsNullOrWhiteSpace(record.RecordId) || record.Day <= 0 || string.IsNullOrWhiteSpace(record.RegionId) || string.IsNullOrWhiteSpace(record.LocationId) || string.IsNullOrWhiteSpace(record.FloorId) || record.GrantedLoot is null)
+                throw new InvalidDataException("Invalid invasion record entry.");
+        foreach (var record in file.ChallengeRecords ?? [])
+            if (string.IsNullOrWhiteSpace(record.RecordId) || record.Day <= 0 || string.IsNullOrWhiteSpace(record.RegionId) || string.IsNullOrWhiteSpace(record.ArchiveId) || record.Score < 0)
+                throw new InvalidDataException("Invalid challenge record entry.");
+        EnsureUnique(file.OwnedCosmeticIds ?? [], "owned cosmetic ID");
+        EnsureUnique((file.EquippedCosmetics ?? []).Select(x => x.TargetKey), "equipped cosmetic target");
+        foreach (var equipped in file.EquippedCosmetics ?? [])
+            if (string.IsNullOrWhiteSpace(equipped.TargetKey) || string.IsNullOrWhiteSpace(equipped.ProductId))
+                throw new InvalidDataException("Invalid equipped cosmetic entry.");
     }
 
     private static void ValidateRealtime(CampaignRealtimeFile? realtime, CampaignResourceFile resources)

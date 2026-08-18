@@ -270,6 +270,7 @@ public sealed class CampaignGameSession
         if (ActiveInvasion is not null) throw new InvalidOperationException("Cannot start defense while invasion is active.");
 
         SyncDungeonFromEditor();
+        DiscoverDefenseEncounter(content);
         _attemptSnapshot = _state.Clone();
         _activeDefenseResolved = false;
         return Defense.StartDefense(content, seed);
@@ -287,6 +288,7 @@ public sealed class CampaignGameSession
         if (simulation.Outcome == DefenseOutcome.Failure)
         {
             _state = _attemptSnapshot.Clone();
+            RecordDefense(simulation, completedDay, _state.RegionId);
             return new DefenseResolution(DefenseOutcome.Failure, completedDay, _state.Day, ResourceBundle.Zero, [], CurrentRegionId: _state.RegionId);
         }
 
@@ -295,6 +297,7 @@ public sealed class CampaignGameSession
         _state.Grant(reward);
         EmitRelicAcquired(reward.Relic);
         var clearedRegionId = _state.RegionId;
+        RecordDefense(simulation, completedDay, clearedRegionId);
         var regionCleared = false;
         string? archiveId = null;
         _regionAdvancedOnDefenseResolution = false;
@@ -368,6 +371,7 @@ public sealed class CampaignGameSession
         if (!scout.IsUnlocked) throw new InvalidOperationException($"Invasion floor is locked: {locationId}/{floorId}.");
         if (!scout.IsAvailable) throw new InvalidOperationException($"Invasion floor is regenerating: {locationId}/{floorId} ({scout.RegenerationRemaining}).");
         var scenario = InvasionCampaignService.ResolveScenario(_state, effectiveContent, locationId, floorId, seed, firstClearScenario);
+        DiscoverInvasionEncounter(scenario.Floor, formation);
 
         ActiveInvasion = new InvasionSimulation(scenario.Floor, formation, effectiveContent, seed);
         _activeInvasionContent = effectiveContent;
@@ -418,6 +422,7 @@ public sealed class CampaignGameSession
                     RegionId: _state.RegionId));
         }
         EmitRelicAcquired(resolution.GrantedLoot.Relic);
+        RecordInvasion(resolution);
         return resolution;
     }
 
@@ -460,8 +465,36 @@ public sealed class CampaignGameSession
     }
 
     public bool RecordChallengeResult(ChallengeResult result)
-        => result.Definition.Mode == ChallengeMode.Score
+    {
+        var improved = result.Definition.Mode == ChallengeMode.Score
             && _state.RecordChallengeScore(result.Definition.ArchiveId, result.Definition.Mode, result.Score);
+        var next = _state.Records.ChallengeRecords.Count + 1;
+        _state.Records.Add(new ChallengeRecordSnapshot(
+            $"challenge.{next:D4}", _state.Day, _state.RegionId, result.Definition.ArchiveId,
+            result.Definition.Mode, result.Outcome, result.Score));
+        return improved;
+    }
+
+    public void EnsureDefaultCosmetics(CosmeticCatalog catalog)
+    {
+        ArgumentNullException.ThrowIfNull(catalog);
+        CampaignCosmeticService.GrantDefaults(_state, catalog);
+    }
+
+    public CosmeticCommandResult ImportCosmeticEntitlements(CosmeticCatalog catalog, IEnumerable<string> productIds)
+        => CampaignCosmeticService.ImportEntitlements(_state, catalog, productIds);
+
+    public CosmeticCommandResult ImportStoreCosmeticEntitlements(CosmeticCatalog catalog, IEnumerable<string> platformSkus)
+        => CampaignCosmeticService.ImportStoreEntitlements(_state, catalog, platformSkus);
+
+    public CosmeticCommandResult PurchaseCosmetic(CosmeticCatalog catalog, IPlatformStore store, string productId)
+        => CampaignCosmeticService.Purchase(_state, catalog, store, productId);
+
+    public CosmeticCommandResult EquipCosmetic(CosmeticCatalog catalog, string productId)
+        => CampaignCosmeticService.Equip(_state, catalog, productId);
+
+    public CosmeticProductDefinition? EquippedCosmetic(CosmeticCatalog catalog, CosmeticCategory category, string targetId)
+        => CampaignCosmeticService.Equipped(_state, catalog, category, targetId);
 
     public CampaignActionResult CompleteResearch(string researchId)
     {
@@ -539,6 +572,44 @@ public sealed class CampaignGameSession
             }
         }
         return unlocked;
+    }
+
+    private void DiscoverDefenseEncounter(DefenseContent content)
+    {
+        foreach (var wave in content.Waves)
+            foreach (var group in wave.SpawnGroups)
+                _state.Records.Discover(CampaignDiscoveryCategory.Enemy, group.UnitId);
+        foreach (var floor in _state.Dungeon.Floors)
+        {
+            foreach (var guard in floor.Board.Guards) _state.Records.Discover(CampaignDiscoveryCategory.Monster, guard.DefinitionId);
+            foreach (var trap in floor.Board.Traps) _state.Records.Discover(CampaignDiscoveryCategory.TrapFacility, trap.DefinitionId);
+            foreach (var facility in floor.Board.Facilities) _state.Records.Discover(CampaignDiscoveryCategory.TrapFacility, facility.DefinitionId);
+        }
+    }
+
+    private void DiscoverInvasionEncounter(InvasionFloorDefinition floor, IReadOnlyList<InvasionFormationEntry> formation)
+    {
+        foreach (var entry in formation.Where(x => x.Count > 0))
+            _state.Records.Discover(CampaignDiscoveryCategory.Monster, entry.UnitId);
+        foreach (var guard in floor.Board.Guards) _state.Records.Discover(CampaignDiscoveryCategory.Enemy, guard.DefinitionId);
+        foreach (var trap in floor.Board.Traps) _state.Records.Discover(CampaignDiscoveryCategory.TrapFacility, trap.DefinitionId);
+        foreach (var facility in floor.Board.Facilities) _state.Records.Discover(CampaignDiscoveryCategory.TrapFacility, facility.DefinitionId);
+    }
+
+    private void RecordDefense(DefenseSimulation simulation, int day, string regionId)
+    {
+        var next = _state.Records.DefenseRecords.Count + 1;
+        var deepest = simulation.FloorDepths.Count == 0 ? 1 : simulation.FloorDepths.Values.Max();
+        _state.Records.Add(new DefenseRecordSnapshot(
+            $"defense.{next:D4}", day, regionId, simulation.Outcome, simulation.CoreHp, simulation.CoreMaxHp, deepest));
+    }
+
+    private void RecordInvasion(InvasionResolution resolution)
+    {
+        var next = _state.Records.InvasionRecords.Count + 1;
+        _state.Records.Add(new InvasionRecordSnapshot(
+            $"invasion.{next:D4}", _state.Day, _state.RegionId, resolution.LocationId, resolution.FloorId,
+            resolution.Outcome, resolution.GrantedLoot, resolution.FirstClear));
     }
 
     private void Emit(CampaignTransitionEvent value) => _transitions.Add(value);

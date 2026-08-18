@@ -22,7 +22,7 @@ public enum ProductAssetCategory
     UiChrome,
 }
 
-public readonly record struct ProductAssetRef(ProductAssetCategory Category, string Id, string? Variant = null);
+public readonly record struct ProductAssetRef(ProductAssetCategory Category, string Id, string? Variant = null, string? ThemeVariant = null);
 
 public enum DarkSpiritExpression
 {

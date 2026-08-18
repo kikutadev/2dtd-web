@@ -39,3 +39,6 @@ internal sealed partial class CampaignSaveJsonContext : JsonSerializerContext;
 
 [JsonSerializable(typeof(NarrativeContentFile))]
 internal sealed partial class NarrativeContentJsonContext : JsonSerializerContext;
+
+[JsonSerializable(typeof(CosmeticCatalogLoader.CosmeticCatalogFile))]
+internal sealed partial class CosmeticCatalogJsonContext : JsonSerializerContext;
