@@ -487,8 +487,11 @@ public sealed class CampaignGameSession
     public CosmeticCommandResult ImportStoreCosmeticEntitlements(CosmeticCatalog catalog, IEnumerable<string> platformSkus)
         => CampaignCosmeticService.ImportStoreEntitlements(_state, catalog, platformSkus);
 
-    public CosmeticCommandResult PurchaseCosmetic(CosmeticCatalog catalog, IPlatformStore store, string productId)
-        => CampaignCosmeticService.Purchase(_state, catalog, store, productId);
+    public CosmeticCommandResult BeginCosmeticPurchase(CosmeticCatalog catalog, IPlatformStore store, string productId)
+    {
+        if (_state.Cosmetics.Owns(productId)) return CosmeticCommandResult.Reject("Cosmetic product is already owned.");
+        return CampaignCosmeticService.BeginPurchase(catalog, store, productId);
+    }
 
     public CosmeticCommandResult EquipCosmetic(CosmeticCatalog catalog, string productId)
         => CampaignCosmeticService.Equip(_state, catalog, productId);

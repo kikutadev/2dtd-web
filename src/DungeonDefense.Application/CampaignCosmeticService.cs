@@ -14,7 +14,8 @@ public sealed record PlatformStoreProduct(string PlatformSku, string DisplayPric
 public interface IPlatformStore
 {
     IReadOnlyList<PlatformStoreProduct> LoadProducts(IReadOnlyList<string> platformSkus);
-    bool Purchase(string platformSku);
+    // Returns whether a purchase request was accepted. This is NOT proof of entitlement.
+    bool BeginPurchase(string platformSku);
     IReadOnlyList<string> RestorePurchases();
     IReadOnlyList<string> CurrentEntitlements();
 }
@@ -54,16 +55,17 @@ public static class CampaignCosmeticService
         return ImportEntitlements(state, catalog, logicalIds);
     }
 
-    public static CosmeticCommandResult Purchase(CampaignState state, CosmeticCatalog catalog, IPlatformStore store, string productId)
+    public static CosmeticCommandResult BeginPurchase(CosmeticCatalog catalog, IPlatformStore store, string productId)
     {
+        ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(store);
         if (!catalog.TryProduct(productId, out var product)) return CosmeticCommandResult.Reject("Unknown cosmetic product.");
         if (!product.IsAvailable) return CosmeticCommandResult.Reject("Cosmetic product is unavailable.");
         if (product.IsDefault) return CosmeticCommandResult.Reject("Default cosmetics are not purchasable.");
         if (string.IsNullOrWhiteSpace(product.PlatformSku)) return CosmeticCommandResult.Reject("Platform purchase is not configured.");
-        if (!store.Purchase(product.PlatformSku)) return CosmeticCommandResult.Reject("Platform purchase did not complete.");
-        state.Cosmetics.Grant(product.Id);
-        return CosmeticCommandResult.Ok();
+        return store.BeginPurchase(product.PlatformSku)
+            ? CosmeticCommandResult.Ok()
+            : CosmeticCommandResult.Reject("Platform purchase request was not accepted.");
     }
 
     public static CosmeticCommandResult Equip(CampaignState state, CosmeticCatalog catalog, string productId)
@@ -89,7 +91,7 @@ public sealed class UnavailablePlatformStore : IPlatformStore
 {
     public IReadOnlyList<PlatformStoreProduct> LoadProducts(IReadOnlyList<string> platformSkus)
         => platformSkus.Select(x => new PlatformStoreProduct(x, string.Empty, false)).ToArray();
-    public bool Purchase(string platformSku) => false;
+    public bool BeginPurchase(string platformSku) => false;
     public IReadOnlyList<string> RestorePurchases() => [];
     public IReadOnlyList<string> CurrentEntitlements() => [];
 }
@@ -104,7 +106,7 @@ public sealed class FakePlatformStore : IPlatformStore
 
     public IReadOnlyList<PlatformStoreProduct> LoadProducts(IReadOnlyList<string> platformSkus)
         => platformSkus.Select(sku => new PlatformStoreProduct(sku, _prices.GetValueOrDefault(sku, string.Empty), _prices.ContainsKey(sku))).ToArray();
-    public bool Purchase(string platformSku)
+    public bool BeginPurchase(string platformSku)
     {
         if (!_prices.ContainsKey(platformSku)) return false;
         _entitlements.Add(platformSku);
