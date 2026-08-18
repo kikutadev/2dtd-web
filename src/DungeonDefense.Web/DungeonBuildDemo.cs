@@ -21,6 +21,16 @@ internal sealed class DungeonBuildDemo
         Reset();
     }
 
+    public DungeonBuildDemo(DefenseContent content, PlayerDungeonSaveFile save)
+    {
+        _content = content ?? throw new ArgumentNullException(nameof(content));
+        ArgumentNullException.ThrowIfNull(save);
+        var imported = PlayerDungeonSaveService.Import(save);
+        Session = new DefenseGameSession(imported.Dungeon);
+        Session.SelectFloor(imported.SelectedFloorId.Value);
+        _nextInstanceNumber = NextInstanceNumber(Session.Editor.Current);
+    }
+
     public DefenseGameSession Session { get; private set; } = null!;
 
     public DungeonState Board => Session.Editor.Current;
@@ -102,6 +112,24 @@ internal sealed class DungeonBuildDemo
     /// <summary>Returns a completed attempt to preparation so the same session can be edited and replayed.</summary>
     public void ReturnToBuild()
         => Session.ReturnToPreparation();
+
+    public PlayerDungeonSaveFile ExportSave()
+        => PlayerDungeonSaveService.Export(Session.Dungeon, Session.DungeonEditor.SelectedFloorId);
+
+    private static int NextInstanceNumber(DungeonState board)
+    {
+        var ids = board.Rooms.Select(x => x.InstanceId)
+            .Concat(board.Traps.Select(x => x.InstanceId))
+            .Concat(board.Guards.Select(x => x.InstanceId))
+            .Concat(board.Facilities.Select(x => x.InstanceId));
+        var max = 0;
+        foreach (var id in ids)
+        {
+            var suffix = id.Split('-').LastOrDefault();
+            if (int.TryParse(suffix, out var value)) max = Math.Max(max, value);
+        }
+        return max + 1;
+    }
 
     private BuildOption ResolveBuildOption(string definitionId)
     {

@@ -4,14 +4,64 @@
 @using DungeonDefense.Core
 @using DungeonDefense.Presentation
 @using DungeonDefense.Contracts
+@using DungeonDefense.Infrastructure
+@using Microsoft.JSInterop
 @using System.Diagnostics
 @inject HttpClient Http
+@inject IJSRuntime JS
 
 <PageTitle>Dungeon Defense</PageTitle>
 
-@if (_content is null)
+@if (_content is null || _cosmetics is null)
 {
     <div class="loading-shell"><div class="loader"></div><p>@T("loading")</p></div>
+}
+else if (_showShop && _cosmetics is not null)
+{
+    var shopState = CurrentShopState;
+    var selectedShop = SelectedShopProduct;
+    <main class="shop-shell">
+        <header class="hub-top shop-top">
+            <div><strong>@T("shop.heading")</strong><span>@T("shop.preview_only")</span></div>
+            <div class="hub-top-actions"><button @onclick="CloseShop">@T("common.back")</button></div>
+        </header>
+        <section class="shop-body">
+            <nav class="shop-catalog">
+                <strong>@T("shop.theme_pack")</strong>
+                @foreach (var product in shopState.Products)
+                {
+                    var productId = product.ProductId;
+                    <button class="@(selectedShop?.ProductId == product.ProductId ? "active" : null)" @onclick="() => SelectShopProduct(productId)">
+                        <span>@CosmeticProductName(product.ProductId)</span>
+                        <small>@(product.Equipped ? T("shop.equipped") : product.Owned ? T("shop.owned") : T("shop.preview_only_short"))</small>
+                    </button>
+                }
+            </nav>
+            <section class="shop-detail">
+                @if (selectedShop is not null)
+                {
+                    <div class="shop-copy">
+                        <div><h1>@CosmeticProductName(selectedShop.ProductId)</h1><p>@CosmeticProductDescription(selectedShop.ProductId)</p></div>
+                        @if (selectedShop.Equipped)
+                        {
+                            <button disabled>@T("shop.equipped")</button>
+                        }
+                        else
+                        {
+                            <button disabled title="@T("shop.web_purchase_unavailable")">@T("shop.web_purchase_unavailable")</button>
+                        }
+                    </div>
+                    <div class="shop-preview-grid">
+                        @foreach (var preview in ShopPreviewAssets(selectedShop))
+                        {
+                            <figure><img src="@preview.Path" alt="@preview.Label" /><figcaption>@preview.Label</figcaption></figure>
+                        }
+                    </div>
+                    <p class="shop-note">@T("shop.no_gameplay_effect")</p>
+                }
+            </section>
+        </section>
+    </main>
 }
 else if (!_runStarted)
 {
@@ -33,9 +83,10 @@ else if (!_runStarted)
             </div>
             <div class="title-actions">
                 <button class="primary start-run" @onclick="StartNewRun">@T("start.new_run")</button>
-                <button disabled="@(_build is null)" @onclick="ContinueCurrentRun" title="@(_build is null ? T("start.continue_unavailable") : T("start.continue_session"))">@T("start.continue")</button>
+                <button disabled="@(!_hasSavedRun)" @onclick="ContinueCurrentRun" title="@(_hasSavedRun ? T("start.continue_session") : T("start.continue_unavailable"))">@T("start.continue")</button>
+                <button @onclick="OpenShopFromTitle">@T("shop.heading")</button>
             </div>
-            <small class="title-save-note">@(_build is null ? T("start.continue_unavailable") : T("start.continue_session"))</small>
+            <small class="title-save-note">@(_titleNotice ?? (_hasSavedRun ? T("start.continue_session") : T("start.continue_unavailable")))</small>
         </section>
     </main>
 }
@@ -69,7 +120,7 @@ else if (_showHub && _build is not null)
             <nav class="hub-actions">
                 <button class="primary" @onclick="OpenBriefingFromHub">@T("hub.next_assault")</button>
                 <button @onclick="OpenBuildFromHub">@T("hub.edit")</button>
-                <div class="hub-secondary"><button @onclick="OpenInvasionFromHub">@T("hub.invasion")</button><button disabled>@T("hub.research")</button></div>
+                <div class="hub-secondary"><button @onclick="OpenInvasionFromHub">@T("hub.invasion")</button><button @onclick="OpenShopFromHub">@T("shop.heading")</button><button disabled>@T("hub.research")</button></div>
             </nav>
         </section>
     </main>
@@ -342,7 +393,9 @@ else
 
     private readonly CancellationTokenSource _cts = new();
     private PeriodicTimer? _timer;
+    private const string BrowserSaveKey = "dungeon-defense.web.run.v1";
     private DefenseContent? _content;
+    private CosmeticCatalog? _cosmetics;
     private NarrativePresentationContent? _narrativeContent;
     private readonly TutorialFlow _tutorial = new();
     private DungeonBuildDemo? _build;
@@ -354,6 +407,11 @@ else
     private bool _rotated;
     private string? _notice;
     private bool _showInvasion;
+    private bool _showShop;
+    private bool _shopOpenedFromTitle;
+    private string? _selectedShopProductId;
+    private bool _hasSavedRun;
+    private string? _titleNotice;
     private bool _showHub;
     private bool _showBriefing;
     private bool _runStarted;
@@ -384,14 +442,17 @@ else
     {
         var defenseTask = WebDefenseContentLoader.LoadAsync(Http, _cts.Token);
         var narrativeTask = WebNarrativeContentLoader.LoadAsync(Http, _cts.Token);
-        await Task.WhenAll(defenseTask, narrativeTask);
+        var cosmeticTask = WebCosmeticContentLoader.LoadAsync(Http, _cts.Token);
+        await Task.WhenAll(defenseTask, narrativeTask, cosmeticTask);
         _content = await defenseTask;
         _narrativeContent = await narrativeTask;
+        _cosmetics = await cosmeticTask;
+        await RefreshSavedRunAvailabilityAsync();
         _ = RunLoopAsync(_cts.Token);
     }
 
 
-    private void StartNewRun()
+    private async Task StartNewRun()
     {
         if (_content is null) return;
         _build = new DungeonBuildDemo(_content);
@@ -411,29 +472,181 @@ else
         _tutorial.Skip();
         _tutorialStartedForRun = false;
         _runStarted = true;
+        _showShop = false;
+        await PersistRunAsync();
     }
 
-    private void ContinueCurrentRun()
+    private async Task ContinueCurrentRun()
     {
-        if (_build is null) return;
-        _runStarted = true;
-        _showHub = true;
-        _showBriefing = false;
-        _showInvasion = false;
-        _running = false;
-        _notice = null;
+        if (_content is null) return;
+        try
+        {
+            var json = await JS.InvokeAsync<string?>("localStorage.getItem", BrowserSaveKey);
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                _hasSavedRun = false;
+                _titleNotice = T("start.continue_unavailable");
+                return;
+            }
+            _build = new DungeonBuildDemo(_content, PlayerDungeonSaveCodec.Parse(json));
+            _demo = null;
+            _runStarted = true;
+            _showHub = true;
+            _showBriefing = false;
+            _showInvasion = false;
+            _showShop = false;
+            _running = false;
+            _notice = null;
+            _titleNotice = null;
+        }
+        catch (Exception)
+        {
+            await JS.InvokeVoidAsync("localStorage.removeItem", BrowserSaveKey);
+            _build = null;
+            _hasSavedRun = false;
+            _titleNotice = T("start.save_invalid");
+        }
     }
 
-    private void ReturnToTitle()
+    private async Task ReturnToTitle()
     {
-        // Keep the in-memory Run intact so returning to Title is navigation, not data loss.
+        if (_build is not null) await PersistRunAsync();
+        // Returning to Title is navigation, not data loss.
         _running = false;
         _showInvasion = false;
         _showBriefing = false;
         _showHub = false;
         _notice = null;
+        _showShop = false;
         _runStarted = false;
     }
+
+    private async Task RefreshSavedRunAvailabilityAsync()
+    {
+        try
+        {
+            var json = await JS.InvokeAsync<string?>("localStorage.getItem", BrowserSaveKey);
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                _hasSavedRun = false;
+                return;
+            }
+            _ = PlayerDungeonSaveCodec.Parse(json);
+            _hasSavedRun = true;
+        }
+        catch (Exception)
+        {
+            await JS.InvokeVoidAsync("localStorage.removeItem", BrowserSaveKey);
+            _hasSavedRun = false;
+            _titleNotice = T("start.save_invalid");
+        }
+    }
+
+    private async Task PersistRunAsync()
+    {
+        if (_build is null) return;
+        var json = PlayerDungeonSaveCodec.Serialize(_build.ExportSave());
+        await JS.InvokeVoidAsync("localStorage.setItem", BrowserSaveKey, json);
+        _hasSavedRun = true;
+        _titleNotice = null;
+    }
+
+    private ShopCategoryVisualState CurrentShopState
+    {
+        get
+        {
+            if (_cosmetics is null) return new ShopCategoryVisualState(CosmeticCategory.DungeonTheme, []);
+            var profile = DungeonBoardProfiles.DefenseSlice;
+            var dungeon = _build?.Session.Dungeon
+                ?? PlayerDungeonState.FromSingleFloor(profile.CreateBase(), profile.Id);
+            var state = new CampaignState(1, "region.first_frontier", dungeon, ResourceBundle.Zero);
+            CampaignCosmeticService.GrantDefaults(state, _cosmetics);
+            return ShopPresentation.Build(CosmeticCategory.DungeonTheme, state, _cosmetics, []);
+        }
+    }
+
+    private ShopProductVisualState? SelectedShopProduct
+    {
+        get
+        {
+            var products = CurrentShopState.Products;
+            return products.FirstOrDefault(x => string.Equals(x.ProductId, _selectedShopProductId, StringComparison.Ordinal))
+                ?? products.FirstOrDefault(x => string.Equals(x.ProductId, "cosmetic.theme.azure_core_rite", StringComparison.Ordinal))
+                ?? products.FirstOrDefault();
+        }
+    }
+
+    private IReadOnlyList<(string Label, string Path)> ShopPreviewAssets(ShopProductVisualState product)
+    {
+        var theme = string.Equals(product.AssetVariant, "base", StringComparison.Ordinal) ? null : product.AssetVariant;
+        return
+        [
+            (BuildOptionText("monster.skeleton_warrior"), WebProductAssets.Unit("monster.skeleton_warrior", "S", theme)),
+            (BuildOptionText("monster.skeleton_archer"), WebProductAssets.Unit("monster.skeleton_archer", "S", theme)),
+            (T("shop.goblin"), WebProductAssets.Unit("monster.goblin", "S", theme)),
+            (T("shop.slime"), WebProductAssets.Unit("monster.slime", "S", theme)),
+            (T("shop.spider"), WebProductAssets.Unit("monster.spider", "S", theme)),
+            (T("shop.necromancer"), WebProductAssets.Unit("monster.necromancer", "S", theme)),
+            (T("shop.core"), WebProductAssets.Core(false, theme)),
+            (T("shop.trap"), WebProductAssets.Trap("trap.spike", theme) ?? string.Empty),
+            (T("shop.facility"), WebProductAssets.Facility("facility.magic_eye", theme) ?? string.Empty),
+            (T("shop.effect"), WebProductAssets.Effect("FX-01", theme)),
+            (T("shop.floor"), WebProductAssets.Tile(TileKind.Passage, theme)),
+            (T("shop.gate"), WebProductAssets.Gate(theme)),
+            (T("shop.prop"), theme is null
+                ? WebProductAssets.Resolve(new ProductAssetRef(ProductAssetCategory.Prop, "RP-04"))
+                : WebProductAssets.ThemeProp("ACR-RP-01", theme)),
+        ];
+    }
+
+    private void OpenShopFromTitle()
+    {
+        _shopOpenedFromTitle = true;
+        _selectedShopProductId = "cosmetic.theme.azure_core_rite";
+        _showShop = true;
+    }
+
+    private void OpenShopFromHub()
+    {
+        _shopOpenedFromTitle = false;
+        _selectedShopProductId = "cosmetic.theme.azure_core_rite";
+        _showHub = false;
+        _showBriefing = false;
+        _showInvasion = false;
+        _showShop = true;
+    }
+
+    private void CloseShop()
+    {
+        _showShop = false;
+        if (_shopOpenedFromTitle)
+        {
+            _runStarted = false;
+            _showHub = false;
+        }
+        else
+        {
+            _runStarted = true;
+            _showHub = _build is not null;
+        }
+    }
+
+    private void SelectShopProduct(string productId)
+        => _selectedShopProductId = productId;
+
+    private string CosmeticProductName(string productId) => productId switch
+    {
+        "cosmetic.theme.azure_core_rite" => T("shop.azure_core_rite"),
+        "cosmetic.theme.crypt.classic" => T("shop.classic_theme"),
+        _ => productId,
+    };
+
+    private string CosmeticProductDescription(string productId) => productId switch
+    {
+        "cosmetic.theme.azure_core_rite" => T("shop.azure_core_rite_desc"),
+        "cosmetic.theme.crypt.classic" => T("shop.classic_theme_desc"),
+        _ => string.Empty,
+    };
 
     private void OpenBuildFromHub()
     {
@@ -600,7 +813,7 @@ else
         _notice = null;
     }
 
-    private void HandleCellClick(GridPoint point)
+    private async Task HandleCellClick(GridPoint point)
     {
         if (_build is null || !IsBuilding) return;
 
@@ -617,7 +830,7 @@ else
 
         if (_removeMode)
         {
-            RemoveAt(point);
+            await RemoveAt(point);
             return;
         }
 
@@ -625,6 +838,7 @@ else
         {
             var result = _build.Dig(point.X, point.Y);
             _notice = result.Success ? T("dug_passage") : result.Error;
+            if (result.Success) await PersistRunAsync();
             if (result.Success && _tutorial.Active && _tutorial.Step == TutorialStep.Passage)
                 _tutorial.Accept(TutorialSignal.PassageCommitted);
             return;
@@ -635,6 +849,7 @@ else
         if (option is null) return;
         var resultPlacement = _build.Place(_selectedDefinitionId, point.X, point.Y, _rotated);
         _notice = resultPlacement.Success ? F("placed", SelectedBuildLabel) : resultPlacement.Error;
+        if (resultPlacement.Success) await PersistRunAsync();
         if (!resultPlacement.Success || !_tutorial.Active) return;
 
         if (option.Kind == BuildKind.Room && _tutorial.Step == TutorialStep.Room)
@@ -654,43 +869,63 @@ else
         }
     }
 
-    private void RemoveAt(GridPoint point)
+    private async Task RemoveAt(GridPoint point)
     {
         if (_build is null) return;
+        SemanticEditResult? result = null;
+        string? label = null;
         var guard = Board.Guards.FirstOrDefault(x => x.Position == point);
-        if (guard is not null) { SetRemoveNotice(_build.Remove(BuildKind.Guard, guard.InstanceId), "Guard"); return; }
-        var trap = Board.Traps.FirstOrDefault(x => x.Position == point);
-        if (trap is not null) { SetRemoveNotice(_build.Remove(BuildKind.Trap, trap.InstanceId), "Trap"); return; }
-        var facility = Board.Facilities.FirstOrDefault(x => x.Position == point);
-        if (facility is not null) { SetRemoveNotice(_build.Remove(BuildKind.Facility, facility.InstanceId), "Facility"); return; }
-        var room = Board.RoomAt(point);
-        if (room is not null) { SetRemoveNotice(_build.Remove(BuildKind.Room, room.InstanceId), "Room"); return; }
-        _notice = T("nothing_remove");
+        if (guard is not null) { result = _build.Remove(BuildKind.Guard, guard.InstanceId); label = "Guard"; }
+        else
+        {
+            var trap = Board.Traps.FirstOrDefault(x => x.Position == point);
+            if (trap is not null) { result = _build.Remove(BuildKind.Trap, trap.InstanceId); label = "Trap"; }
+            else
+            {
+                var facility = Board.Facilities.FirstOrDefault(x => x.Position == point);
+                if (facility is not null) { result = _build.Remove(BuildKind.Facility, facility.InstanceId); label = "Facility"; }
+                else
+                {
+                    var room = Board.RoomAt(point);
+                    if (room is not null) { result = _build.Remove(BuildKind.Room, room.InstanceId); label = "Room"; }
+                }
+            }
+        }
+        if (result is null || label is null)
+        {
+            _notice = T("nothing_remove");
+            return;
+        }
+        SetRemoveNotice(result, label);
+        if (result.Success) await PersistRunAsync();
     }
 
     private void SetRemoveNotice(SemanticEditResult result, string label)
         => _notice = result.Success ? F("removed", label) : result.Error;
 
-    private void UndoBuild()
+    private async Task UndoBuild()
     {
         if (_build is null) return;
         var result = _build.Undo();
         _notice = result.Success ? T("undo_done") : result.Error;
+        if (result.Success) await PersistRunAsync();
     }
 
-    private void RedoBuild()
+    private async Task RedoBuild()
     {
         if (_build is null) return;
         var result = _build.Redo();
         _notice = result.Success ? T("redo_done") : result.Error;
+        if (result.Success) await PersistRunAsync();
     }
 
-    private void ResetBuild()
+    private async Task ResetBuild()
     {
         _build?.Reset();
         _removeMode = false;
         _rotated = false;
         _notice = T("board_reset");
+        await PersistRunAsync();
     }
 
     private void StartBuiltDefense()
@@ -710,13 +945,14 @@ else
         _notice = null;
     }
 
-    private void ReturnToBuild()
+    private async Task ReturnToBuild()
     {
         if (_build is null || _demo?.Simulation?.Outcome is not (DefenseOutcome.Success or DefenseOutcome.Failure)) return;
         _build.ReturnToBuild();
         _demo = null;
         _running = false;
         _notice = T("returned_build");
+        await PersistRunAsync();
     }
 
     private void ToggleAutoBattle()

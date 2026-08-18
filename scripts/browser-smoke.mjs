@@ -16,6 +16,7 @@ const capturePath = process.env.WEB_SMOKE_CAPTURE_PATH?.trim();
 const productCaptureWidth = Number(process.env.WEB_SMOKE_PRODUCT_CAPTURE_WIDTH ?? '844');
 const productCaptureHeight = Number(process.env.WEB_SMOKE_PRODUCT_CAPTURE_HEIGHT ?? '390');
 const titleCapturePath = process.env.WEB_SMOKE_TITLE_CAPTURE_PATH?.trim();
+const shopCapturePath = process.env.WEB_SMOKE_SHOP_CAPTURE_PATH?.trim();
 const hubCapturePath = process.env.WEB_SMOKE_HUB_CAPTURE_PATH?.trim();
 const briefingCapturePath = process.env.WEB_SMOKE_BRIEFING_CAPTURE_PATH?.trim();
 const invasionScoutCapturePath = process.env.WEB_SMOKE_INVASION_SCOUT_CAPTURE_PATH?.trim();
@@ -189,6 +190,24 @@ try {
   try {
     await waitForExpression(`document.body?.innerText.includes('新規Runを始める')`, 15_000, 'Title screen');
     await captureViewport(titleCapturePath);
+
+    // Shop is reachable from Title without inventing a Web entitlement. It previews the real
+    // synchronized production assets while billing remains disabled on the Web capability boundary.
+    await clickButtonContaining('ショップ');
+    await waitForExpression(`document.body?.innerText.includes('蒼核の儀式') && document.querySelectorAll('.shop-preview-grid img').length >= 13`, 5_000, 'Shop paid theme preview');
+    const shopSemantics = await evaluate(`(() => ({
+      previews: document.querySelectorAll('.shop-preview-grid img').length,
+      themed: [...document.querySelectorAll('.shop-preview-grid img')].filter(x => (x.getAttribute('src') || '').includes('/themes/azure_core_rite/')).length,
+      loaded: [...document.querySelectorAll('.shop-preview-grid img')].filter(x => x.complete && x.naturalWidth > 0).length,
+      purchaseDisabled: [...document.querySelectorAll('button')].some(x => x.textContent.includes('Web Previewでは購入できません') && x.disabled),
+      overflow: document.documentElement.scrollWidth > window.innerWidth + 1
+    }))()`);
+    if (shopSemantics.previews < 13 || shopSemantics.themed < 13 || shopSemantics.loaded < 13 || !shopSemantics.purchaseDisabled || shopSemantics.overflow)
+      throw new Error(`Shop preview semantics missing: ${JSON.stringify(shopSemantics)}`);
+    await captureViewport(shopCapturePath);
+    await clickButtonContaining('戻る');
+    await waitForExpression(`document.body?.innerText.includes('新規Runを始める')`, 3_000, 'Return from Shop to Title');
+
     await clickButtonContaining('新規Runを始める');
     await waitForExpression(`document.body?.innerText.includes('地下領域') && document.body?.innerText.includes('ダンジョン編集')`, 5_000, 'Hub');
     await captureViewport(hubCapturePath);
@@ -255,9 +274,16 @@ try {
   await clickButtonContaining('ホーム');
   await waitForExpression(`document.body.innerText.includes('地下領域')`, 3_000, 'Return to Hub');
   await clickButtonContaining('スタート画面');
-  await waitForExpression(`document.body.innerText.includes('新規Runを始める') && [...document.querySelectorAll('button')].some(x => x.textContent.includes('続きから') && !x.disabled)`, 3_000, 'Return to Title with resumable in-memory Run');
+  await waitForExpression(`document.body.innerText.includes('新規Runを始める') && [...document.querySelectorAll('button')].some(x => x.textContent.includes('続きから') && !x.disabled)`, 3_000, 'Return to Title with browser-persistent Run');
+  const persistedRun = await evaluate(`localStorage.getItem('dungeon-defense.web.run.v1')`);
+  if (!persistedRun || !persistedRun.includes('player_dungeon_save')) throw new Error('Production player dungeon save was not written to localStorage');
+
+  // Reload is the real persistence boundary. Continue must remain available after the Blazor app
+  // and all in-memory host state are recreated from scratch.
+  await cdp('Page.reload', { ignoreCache: true });
+  await waitForExpression(`document.body.innerText.includes('新規Runを始める') && [...document.querySelectorAll('button')].some(x => x.textContent.includes('続きから') && !x.disabled)`, 12_000, 'Reloaded Title with persisted Continue');
   await clickButtonContaining('続きから');
-  await waitForExpression(`document.body.innerText.includes('地下領域') && document.body.innerText.includes('ダンジョン編集')`, 3_000, 'Continue current Run from Title');
+  await waitForExpression(`document.body.innerText.includes('地下領域') && document.body.innerText.includes('ダンジョン編集')`, 5_000, 'Continue persisted Run after reload');
   await clickButtonContaining('EN');
   await waitForExpression(`document.body.innerText.includes('Dungeon Domain') && document.body.innerText.includes('Edit Dungeon')`, 3_000, 'English Hub locale');
 
@@ -404,7 +430,7 @@ try {
   await clickButtonContaining('Defense');
   await waitForExpression(`document.body.innerText.includes('Dungeon Domain') || document.body.innerText.includes('地下領域')`, 3_000, 'Return to Hub from invasion');
 
-  console.log(`browser-smoke=ok tutorial=complete defense=${outcome} locale=ja/en mobile=${mobileMetrics.viewport}px invasion=${invasionOutcome} invasionLocale=en`);
+  console.log(`browser-smoke=ok shop=azure-core-preview save=reload-continue tutorial=complete defense=${outcome} locale=ja/en mobile=${mobileMetrics.viewport}px invasion=${invasionOutcome} invasionLocale=en`);
 } finally {
   try { socket?.close(); } catch {}
   if (staticServer) await new Promise(resolve => staticServer.close(resolve));
