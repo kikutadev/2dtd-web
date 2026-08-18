@@ -92,7 +92,6 @@ require_path "$SOURCE_ROOT/content/invasion-maps.json"
 require_path "$SOURCE_ROOT/content/cosmetics.json"
 require_path "$SOURCE_ROOT/godot/assets/production"
 
-SOURCE_REVISION="$(git -C "$SOURCE_ROOT" rev-parse HEAD)"
 SNAPSHOT_PATHS=(
   src/DungeonDefense.Core
   src/DungeonDefense.Contracts
@@ -106,6 +105,9 @@ SNAPSHOT_PATHS=(
   content/cosmetics.json
   godot/assets/production
 )
+# Record the newest commit that actually changed the synchronized snapshot paths.
+# Repository HEAD may advance because of docs or other parallel work that Web never copies.
+SOURCE_REVISION="$(git -C "$SOURCE_ROOT" log -1 --format=%H -- "${SNAPSHOT_PATHS[@]}")"
 SOURCE_STATUS="$(git -C "$SOURCE_ROOT" status --porcelain --untracked-files=normal -- "${SNAPSHOT_PATHS[@]}")"
 SOURCE_DIRTY=0
 if [[ -n "$SOURCE_STATUS" ]]; then

@@ -64,7 +64,7 @@ The sibling `2dTD` source remains authoritative. Refresh the copied projects, pl
 ./scripts/sync-from-2dtd.sh
 ```
 
-The command synchronizes `Core`, `Contracts`, `Application`, and `Presentation`, removes stale snapshot files, refreshes playable content including `cosmetics.json` and production art (including paid Theme assets), records the source Git revision, and performs a Release build. It rejects a dirty `2dTD` source tree by default so `SOURCE_REVISION.txt` stays reproducible.
+The command synchronizes `Core`, `Contracts`, `Application`, and `Presentation`, removes stale snapshot files, refreshes playable content including `cosmetics.json` and production art (including paid Theme assets), records the newest Git revision that changed the synchronized snapshot paths, and performs a Release build. It rejects a dirty `2dTD` source tree by default so `SOURCE_REVISION.txt` stays reproducible.
 
 Useful validation modes:
 
