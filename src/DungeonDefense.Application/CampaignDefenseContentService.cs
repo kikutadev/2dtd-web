@@ -49,6 +49,7 @@ public static class CampaignDefenseContentService
 
         return new DefenseContent
         {
+            MonsterRoster = content.MonsterRoster,
             Units = units,
             Traps = traps,
             Facilities = facilities,

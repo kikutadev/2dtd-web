@@ -86,6 +86,7 @@ require_path "$SOURCE_ROOT/src/DungeonDefense.Contracts"
 require_path "$SOURCE_ROOT/src/DungeonDefense.Application"
 require_path "$SOURCE_ROOT/src/DungeonDefense.Infrastructure"
 require_path "$SOURCE_ROOT/src/DungeonDefense.Presentation"
+require_path "$SOURCE_ROOT/content/monster-roster.json"
 require_path "$SOURCE_ROOT/content/vertical-slice.json"
 require_path "$SOURCE_ROOT/content/invasion-vertical-slice.json"
 require_path "$SOURCE_ROOT/content/invasion-maps.json"
@@ -98,6 +99,7 @@ SNAPSHOT_PATHS=(
   src/DungeonDefense.Application
   src/DungeonDefense.Infrastructure
   src/DungeonDefense.Presentation
+  content/monster-roster.json
   content/vertical-slice.json
   content/invasion-vertical-slice.json
   content/invasion-maps.json
@@ -175,6 +177,9 @@ for project in "${PROJECTS[@]}"; do
 done
 
 sync_file \
+  "$SOURCE_ROOT/content/monster-roster.json" \
+  "$WEB_ROOT/src/DungeonDefense.Web/wwwroot/content/monster-roster.json"
+sync_file \
   "$SOURCE_ROOT/content/vertical-slice.json" \
   "$WEB_ROOT/src/DungeonDefense.Web/wwwroot/content/vertical-slice.json"
 sync_file \
@@ -201,6 +206,9 @@ if [[ "$VERIFY_ONLY" -eq 1 ]]; then
       rsync -a --omit-dir-times --delete --exclude bin --exclude obj --exclude .DS_Store --exclude '*.import' --dry-run --itemize-changes \
         "$SOURCE_ROOT/src/$project/" "$WEB_ROOT/src/$project/"
     done
+    if ! cmp -s "$SOURCE_ROOT/content/monster-roster.json" "$WEB_ROOT/src/DungeonDefense.Web/wwwroot/content/monster-roster.json"; then
+      echo "content/monster-roster.json differs"
+    fi
     if ! cmp -s "$SOURCE_ROOT/content/vertical-slice.json" "$WEB_ROOT/src/DungeonDefense.Web/wwwroot/content/vertical-slice.json"; then
       echo "content/vertical-slice.json differs"
     fi
@@ -257,7 +265,7 @@ Source repository has unrelated changes: $( [[ "$REPOSITORY_DIRTY" -eq 1 ]] && e
 Reproducible from revision alone: $REPRODUCIBLE_LABEL
 Snapshot date: $(date +%Y-%m-%d)
 Shared projects: DungeonDefense.Core, DungeonDefense.Contracts, DungeonDefense.Application, DungeonDefense.Infrastructure, DungeonDefense.Presentation
-Content: content/vertical-slice.json, content/invasion-vertical-slice.json, content/invasion-maps.json, content/narrative-campaign.json, content/cosmetics.json
+Content: content/monster-roster.json, content/vertical-slice.json, content/invasion-vertical-slice.json, content/invasion-maps.json, content/narrative-campaign.json, content/cosmetics.json
 Art: godot/assets/production
 EOF
 

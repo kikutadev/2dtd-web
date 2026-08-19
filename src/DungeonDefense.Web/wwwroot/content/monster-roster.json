@@ -1,0 +1,164 @@
+{
+  "content_version": "monster-roster.v1",
+  "monsters": [
+    {
+      "id": "monster.skeleton_warrior",
+      "species_id": "species.skeleton",
+      "asset_id": "MN-01",
+      "combat": {
+        "role": "Fighter",
+        "max_hp": 140,
+        "damage": 14,
+        "attack_range": 1,
+        "attack_cooldown_ticks": 12,
+        "move_interval_ticks": 8,
+        "heal_power": 0
+      },
+      "defense": {
+        "capacity_cost": 6,
+        "guard_zone_radius": 2,
+        "blocks": true
+      },
+      "invasion": {
+        "deployment_cost": 2,
+        "archetype": "VANGUARD"
+      },
+      "progression": {
+        "required_unlock_id": null
+      }
+    },
+    {
+      "id": "monster.skeleton_archer",
+      "species_id": "species.skeleton",
+      "asset_id": "MN-02",
+      "combat": {
+        "role": "Ranged",
+        "max_hp": 85,
+        "damage": 12,
+        "attack_range": 4,
+        "attack_cooldown_ticks": 10,
+        "move_interval_ticks": 10,
+        "heal_power": 0
+      },
+      "defense": {
+        "capacity_cost": 5,
+        "guard_zone_radius": 3,
+        "blocks": false
+      },
+      "invasion": {
+        "deployment_cost": 2,
+        "archetype": "BACKLINE_STRIKER"
+      },
+      "progression": {
+        "required_unlock_id": null
+      }
+    },
+    {
+      "id": "monster.goblin",
+      "species_id": "species.goblin",
+      "asset_id": "MN-03",
+      "combat": {
+        "role": "Fighter",
+        "max_hp": 75,
+        "damage": 10,
+        "attack_range": 1,
+        "attack_cooldown_ticks": 10,
+        "move_interval_ticks": 5,
+        "heal_power": 0
+      },
+      "defense": {
+        "capacity_cost": 4,
+        "guard_zone_radius": 3,
+        "blocks": false
+      },
+      "invasion": {
+        "deployment_cost": 1,
+        "archetype": "GENERALIST"
+      },
+      "progression": {
+        "required_unlock_id": "monster.goblin"
+      }
+    },
+    {
+      "id": "monster.slime",
+      "species_id": "species.slime",
+      "asset_id": "MN-04",
+      "combat": {
+        "role": "Fighter",
+        "max_hp": 190,
+        "damage": 8,
+        "attack_range": 1,
+        "attack_cooldown_ticks": 16,
+        "move_interval_ticks": 12,
+        "heal_power": 0
+      },
+      "defense": {
+        "capacity_cost": 7,
+        "guard_zone_radius": 2,
+        "blocks": true
+      },
+      "invasion": {
+        "deployment_cost": 3,
+        "archetype": "VANGUARD"
+      },
+      "progression": {
+        "required_unlock_id": "monster.slime"
+      }
+    },
+    {
+      "id": "monster.spider",
+      "species_id": "species.spider",
+      "asset_id": "MN-05",
+      "combat": {
+        "role": "Fighter",
+        "max_hp": 65,
+        "damage": 8,
+        "attack_range": 1,
+        "attack_cooldown_ticks": 9,
+        "move_interval_ticks": 4,
+        "heal_power": 0,
+        "attack_status_kind": "Slow",
+        "attack_status_strength": 2,
+        "attack_status_duration_ticks": 18
+      },
+      "defense": {
+        "capacity_cost": 5,
+        "guard_zone_radius": 4,
+        "blocks": false
+      },
+      "invasion": {
+        "deployment_cost": 1,
+        "archetype": "SWARM"
+      },
+      "progression": {
+        "required_unlock_id": "monster.spider"
+      }
+    },
+    {
+      "id": "monster.necromancer",
+      "species_id": "species.necromancer",
+      "asset_id": "MN-06",
+      "combat": {
+        "role": "Priest",
+        "max_hp": 80,
+        "damage": 4,
+        "attack_range": 3,
+        "attack_cooldown_ticks": 16,
+        "move_interval_ticks": 9,
+        "heal_power": 12
+      },
+      "defense": {
+        "capacity_cost": 8,
+        "guard_zone_radius": 3,
+        "blocks": false
+      },
+      "invasion": {
+        "deployment_cost": 4,
+        "archetype": "SUPPORT"
+      },
+      "progression": {
+        "required_unlock_id": "monster.necromancer"
+      }
+    }
+  ]
+}

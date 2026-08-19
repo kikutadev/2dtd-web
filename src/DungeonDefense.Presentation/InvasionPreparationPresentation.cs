@@ -116,6 +116,7 @@ public static class InvasionPreparationPresentation
         IReadOnlyDictionary<string, int> formation)
     {
         ArgumentNullException.ThrowIfNull(content);
+        if (content.MonsterRoster is { } roster) ProductAssetIdentity.ConfigureMonsterAssets(roster);
         ArgumentNullException.ThrowIfNull(scout);
         ArgumentNullException.ThrowIfNull(formation);
 

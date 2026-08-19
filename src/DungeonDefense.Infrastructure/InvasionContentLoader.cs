@@ -17,16 +17,25 @@ public static class InvasionContentLoader
     public static InvasionContent Load(string path, DefenseContent sharedCombatSource)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var directory = Path.GetDirectoryName(Path.GetFullPath(path))!;
+        var rosterPath = Path.Combine(directory, "monster-roster.json");
+        var roster = File.Exists(rosterPath) ? MonsterRosterContentLoader.Load(rosterPath) : null;
+        return Load(path, sharedCombatSource, roster);
+    }
+
+    public static InvasionContent Load(string path, DefenseContent sharedCombatSource, MonsterRosterContent? roster)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
         var mapPath = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path))!, "invasion-maps.json");
         if (!File.Exists(mapPath)) throw new FileNotFoundException("Invasion spatial map file is required next to invasion metadata.", mapPath);
-        return LoadFromJson(File.ReadAllText(path), File.ReadAllText(mapPath), sharedCombatSource);
+        return LoadFromJson(File.ReadAllText(path), File.ReadAllText(mapPath), sharedCombatSource, roster);
     }
 
     /// <summary>
     /// Decodes invasion metadata and authored spatial maps without owning transport.
     /// Native hosts read files; WebAssembly fetches the same JSON over HTTP.
     /// </summary>
-    public static InvasionContent LoadFromJson(string metadataJson, string mapJson, DefenseContent sharedCombatSource)
+    public static InvasionContent LoadFromJson(string metadataJson, string mapJson, DefenseContent sharedCombatSource, MonsterRosterContent? roster = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(metadataJson);
         ArgumentException.ThrowIfNullOrWhiteSpace(mapJson);
@@ -37,16 +46,32 @@ public static class InvasionContentLoader
             throw new InvalidDataException("Unsupported invasion content schema/kind.");
 
         var combat = DungeonCombatContent.FromDefenseContent(sharedCombatSource);
-        var deploymentCosts = dto.FormationUnits.ToDictionary(x => x.UnitId, x =>
+        IReadOnlyDictionary<string, int> deploymentCosts;
+        IReadOnlyDictionary<string, InvasionUnitRoleProfile> roleProfiles;
+        if (roster is not null)
         {
-            if (!combat.Units.TryGetValue(x.UnitId, out var unit) || unit.Team != Team.Dungeon)
-                throw new InvalidDataException($"Unknown dungeon invasion unit: {x.UnitId}");
-            return x.DeploymentCost;
-        }, StringComparer.Ordinal);
-        var roleProfiles = dto.FormationUnits.ToDictionary(
-            x => x.UnitId,
-            x => new InvasionUnitRoleProfile(x.UnitId, ParseArchetype(x.Archetype)),
-            StringComparer.Ordinal);
+            deploymentCosts = roster.Monsters.ToDictionary(x => x.Id, x => x.Invasion.DeploymentCost, StringComparer.Ordinal);
+            roleProfiles = roster.Monsters.ToDictionary(
+                x => x.Id,
+                x => new InvasionUnitRoleProfile(x.Id, x.Invasion.Archetype),
+                StringComparer.Ordinal);
+        }
+        else
+        {
+            var legacyFormation = dto.FormationUnits ?? [];
+            if (legacyFormation.Length == 0)
+                throw new InvalidDataException("Invasion roster must come from MonsterRosterContent; legacy formation_units are absent.");
+            deploymentCosts = legacyFormation.ToDictionary(x => x.UnitId, x =>
+            {
+                if (!combat.Units.TryGetValue(x.UnitId, out var unit) || unit.Team != Team.Dungeon)
+                    throw new InvalidDataException($"Unknown dungeon invasion unit: {x.UnitId}");
+                return x.DeploymentCost;
+            }, StringComparer.Ordinal);
+            roleProfiles = legacyFormation.ToDictionary(
+                x => x.UnitId,
+                x => new InvasionUnitRoleProfile(x.UnitId, ParseArchetype(x.Archetype)),
+                StringComparer.Ordinal);
+        }
         var spells = dto.Spells.ToDictionary(
             x => x.Id,
             x => new InvasionSupportSpellDefinition(x.Id, ParseSpellKind(x.Kind), x.MpCost, x.CooldownTicks, x.Magnitude),
@@ -85,7 +110,8 @@ public static class InvasionContentLoader
             deploymentCosts,
             spells,
             locations,
-            roleProfiles);
+            roleProfiles,
+            roster);
     }
 
     public static string FindDefaultPath(string? startDirectory = null)
@@ -127,7 +153,7 @@ public static class InvasionContentLoader
     };
 
     internal sealed record InvasionContentFile(int SchemaVersion, string Kind, string ContentVersion, int DeploymentCapacity,
-        int RetreatDisengageTicks, int WipeLootPercent, int MaxMp, int MpChargePerTick, FormationUnitFile[] FormationUnits,
+        int RetreatDisengageTicks, int WipeLootPercent, int MaxMp, int MpChargePerTick, FormationUnitFile[]? FormationUnits,
         SpellFile[] Spells, LocationFile[] Locations);
     internal sealed record FormationUnitFile(string UnitId, int DeploymentCost, string Archetype = "GENERALIST");
     internal sealed record SpellFile(string Id, string Kind, int MpCost, int CooldownTicks, int Magnitude);

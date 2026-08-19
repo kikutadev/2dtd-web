@@ -4,32 +4,6 @@
   "mpChargePerTick": 1,
   "units": [
     {
-      "id": "monster.skeleton_warrior",
-      "team": "Dungeon",
-      "role": "Fighter",
-      "maxHp": 140,
-      "damage": 14,
-      "attackRange": 1,
-      "attackCooldownTicks": 12,
-      "moveIntervalTicks": 8,
-      "blocks": true,
-      "guardZoneRadius": 2,
-      "healPower": 0
-    },
-    {
-      "id": "monster.skeleton_archer",
-      "team": "Dungeon",
-      "role": "Ranged",
-      "maxHp": 85,
-      "damage": 12,
-      "attackRange": 4,
-      "attackCooldownTicks": 10,
-      "moveIntervalTicks": 10,
-      "blocks": false,
-      "guardZoneRadius": 3,
-      "healPower": 0
-    },
-    {
       "id": "human.warrior",
       "team": "Invader",
       "role": "Fighter",

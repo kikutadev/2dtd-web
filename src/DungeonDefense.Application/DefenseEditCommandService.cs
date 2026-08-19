@@ -18,9 +18,33 @@ public sealed class DefenseEditCommandService
 {
     private readonly DungeonEditorSession? _legacyEditor;
     private readonly PlayerDungeonEditorSession? _dungeonEditor;
+    private MonsterRosterContent? _monsterRoster;
+    private Func<string, bool>? _isGuardAvailable;
 
-    public DefenseEditCommandService(DungeonEditorSession editor) => _legacyEditor = editor;
-    public DefenseEditCommandService(PlayerDungeonEditorSession editor) => _dungeonEditor = editor;
+    public DefenseEditCommandService(DungeonEditorSession editor, MonsterRosterContent? monsterRoster = null, Func<string, bool>? isGuardAvailable = null)
+    {
+        _legacyEditor = editor;
+        ConfigureMonsterRoster(monsterRoster, isGuardAvailable);
+    }
+
+    public DefenseEditCommandService(PlayerDungeonEditorSession editor, MonsterRosterContent? monsterRoster = null, Func<string, bool>? isGuardAvailable = null)
+    {
+        _dungeonEditor = editor;
+        ConfigureMonsterRoster(monsterRoster, isGuardAvailable);
+    }
+
+    public IReadOnlyList<BuildOption> AvailableGuards => _monsterRoster is null
+        ? []
+        : _monsterRoster.Monsters
+            .Where(x => _isGuardAvailable?.Invoke(x.Id) ?? true)
+            .Select(DefenseSliceBuildCatalog.ToGuardOption)
+            .ToArray();
+
+    public void ConfigureMonsterRoster(MonsterRosterContent? monsterRoster, Func<string, bool>? isGuardAvailable = null)
+    {
+        _monsterRoster = monsterRoster;
+        _isGuardAvailable = isGuardAvailable;
+    }
 
     public SemanticEditResult Execute(SemanticCommand command)
     {
@@ -28,10 +52,17 @@ public sealed class DefenseEditCommandService
         var editor = ResolveEditor(floorId);
         if (command is UndoEditCommand) return Undo(editor, floorId);
         if (command is RedoEditCommand) return Redo(editor, floorId);
-        return SemanticEditResult.From(editor.Apply(state => Evaluate(state, command)), floorId);
+        return SemanticEditResult.From(editor.Apply(state => Evaluate(state, command, _monsterRoster, _isGuardAvailable)), floorId);
     }
 
     public static EditResult Evaluate(DungeonState state, SemanticCommand command)
+        => Evaluate(state, command, null, null);
+
+    public static EditResult Evaluate(
+        DungeonState state,
+        SemanticCommand command,
+        MonsterRosterContent? monsterRoster,
+        Func<string, bool>? isGuardAvailable = null)
     {
         return command switch
         {
@@ -42,7 +73,7 @@ public sealed class DefenseEditCommandService
             RotateRoomCommand room => EvaluateRotateRoom(state, room),
             PlaceTrapCommand trap => EvaluatePlaceTrap(state, trap),
             RemoveTrapCommand trap => DungeonEditorRules.RemoveTrap(state, trap.InstanceId),
-            PlaceGuardCommand guard => EvaluatePlaceGuard(state, guard),
+            PlaceGuardCommand guard => EvaluatePlaceGuard(state, guard, monsterRoster, isGuardAvailable),
             RemoveGuardCommand guard => DungeonEditorRules.RemoveGuard(state, guard.InstanceId),
             PlaceFacilityCommand facility => EvaluatePlaceFacility(state, facility),
             RemoveFacilityCommand facility => DungeonEditorRules.RemoveFacility(state, facility.InstanceId),
@@ -54,7 +85,7 @@ public sealed class DefenseEditCommandService
     {
         var floorId = ResolveFloorId(command);
         var editor = ResolveEditor(floorId);
-        return SemanticEditResult.From(Evaluate(editor.Current, command), floorId);
+        return SemanticEditResult.From(Evaluate(editor.Current, command, _monsterRoster, _isGuardAvailable), floorId);
     }
 
     private DungeonEditorSession ResolveEditor(string floorId)
@@ -124,12 +155,20 @@ public sealed class DefenseEditCommandService
             : DungeonEditorRules.PlaceTrap(state, command.InstanceId, item.Id, new GridPoint(command.X, command.Y), item.CapacityCost);
     }
 
-    private static EditResult EvaluatePlaceGuard(DungeonState state, PlaceGuardCommand command)
+    private static EditResult EvaluatePlaceGuard(
+        DungeonState state,
+        PlaceGuardCommand command,
+        MonsterRosterContent? monsterRoster,
+        Func<string, bool>? isGuardAvailable)
     {
-        var item = DefenseSliceBuildCatalog.Guards.SingleOrDefault(x => x.Id == command.DefinitionId);
-        return item is null
-            ? EditResult.Failed(state, $"Unknown guard definition: {command.DefinitionId}")
-            : DungeonEditorRules.PlaceGuard(state, command.InstanceId, item.Id, new GridPoint(command.X, command.Y), item.CapacityCost, item.GuardZoneRadius);
+        if (monsterRoster is null)
+            return EditResult.Failed(state, "Monster roster is not configured for guard placement.");
+        if (!monsterRoster.TryMonster(command.DefinitionId, out var monster))
+            return EditResult.Failed(state, $"Unknown guard definition: {command.DefinitionId}");
+        if (isGuardAvailable is not null && !isGuardAvailable(command.DefinitionId))
+            return EditResult.Failed(state, $"Guard is not unlocked: {command.DefinitionId}");
+        var item = DefenseSliceBuildCatalog.ToGuardOption(monster);
+        return DungeonEditorRules.PlaceGuard(state, command.InstanceId, item.Id, new GridPoint(command.X, command.Y), item.CapacityCost, item.GuardZoneRadius);
     }
 
     private static EditResult EvaluatePlaceFacility(DungeonState state, PlaceFacilityCommand command)

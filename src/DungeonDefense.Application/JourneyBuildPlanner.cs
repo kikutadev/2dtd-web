@@ -156,9 +156,12 @@ public static class JourneyBuildPlanner
     {
         var state = session.Editor.Current;
         var route = DungeonPathfinder.FindRoute(state);
-        var definitions = sequence % 2 == 0
-            ? new[] { DefenseSliceBuildCatalog.SkeletonArcher, DefenseSliceBuildCatalog.SkeletonWarrior }
-            : new[] { DefenseSliceBuildCatalog.SkeletonWarrior, DefenseSliceBuildCatalog.SkeletonArcher };
+        var available = session.EditorCommands.AvailableGuards
+            .OrderBy(x => x.Id, StringComparer.Ordinal)
+            .ToArray();
+        if (available.Length == 0) return Fail(out action);
+        var offset = Math.Abs(sequence) % available.Length;
+        var definitions = available.Skip(offset).Concat(available.Take(offset)).ToArray();
         foreach (var definition in definitions)
         {
             var instanceId = $"J-G-{day:D2}-{sequence:D2}";

@@ -19,6 +19,7 @@ public static class DungeonBuildProductPresentation
         ArgumentNullException.ThrowIfNull(board);
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(options);
+        if (content.MonsterRoster is { } roster) ProductAssetIdentity.ConfigureMonsterAssets(roster);
 
         var analysis = DungeonBuildAnalyzer.Analyze(board, content);
         var optionStates = options

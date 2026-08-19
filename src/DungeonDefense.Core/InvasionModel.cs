@@ -89,7 +89,8 @@ public sealed class InvasionContent
         IReadOnlyDictionary<string, int> unitDeploymentCosts,
         IReadOnlyDictionary<string, InvasionSupportSpellDefinition> supportSpells,
         IReadOnlyList<InvasionLocationDefinition> locations,
-        IReadOnlyDictionary<string, InvasionUnitRoleProfile>? unitRoleProfiles = null)
+        IReadOnlyDictionary<string, InvasionUnitRoleProfile>? unitRoleProfiles = null,
+        MonsterRosterContent? monsterRoster = null)
     {
         if (string.IsNullOrWhiteSpace(contentVersion)) throw new ArgumentException("Content version is required.", nameof(contentVersion));
         if (deploymentCapacity <= 0 || maxMp <= 0 || mpChargePerTick < 0 || retreatDisengageTicks <= 0)
@@ -109,6 +110,7 @@ public sealed class InvasionContent
         UnitRoleProfiles = unitRoleProfiles is null
             ? unitDeploymentCosts.Keys.ToDictionary(id => id, id => new InvasionUnitRoleProfile(id), StringComparer.Ordinal)
             : new Dictionary<string, InvasionUnitRoleProfile>(unitRoleProfiles, StringComparer.Ordinal);
+        MonsterRoster = monsterRoster;
         Validate();
     }
 
@@ -121,6 +123,7 @@ public sealed class InvasionContent
     public DungeonCombatContent Combat { get; }
     public IReadOnlyDictionary<string, int> UnitDeploymentCosts { get; }
     public IReadOnlyDictionary<string, InvasionUnitRoleProfile> UnitRoleProfiles { get; }
+    public MonsterRosterContent? MonsterRoster { get; }
     public IReadOnlyDictionary<string, InvasionSupportSpellDefinition> SupportSpells { get; }
     public IReadOnlyList<InvasionLocationDefinition> Locations { get; }
 

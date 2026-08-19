@@ -13,6 +13,13 @@ public static class VerticalSliceContentLoader
 
     public static DefenseContent Load(string path)
     {
+        var siblingRosterPath = Path.Combine(Path.GetDirectoryName(path) ?? string.Empty, "monster-roster.json");
+        var roster = File.Exists(siblingRosterPath) ? MonsterRosterContentLoader.Load(siblingRosterPath) : null;
+        return Load(path, roster);
+    }
+
+    public static DefenseContent Load(string path, MonsterRosterContent? roster)
+    {
         var json = File.ReadAllText(path);
         var dto = JsonSerializer.Deserialize(json, JsonContext.DefenseContentDto)
             ?? throw new InvalidDataException("Defense content is empty.");
@@ -30,6 +37,14 @@ public static class VerticalSliceContentLoader
             x.Blocks,
             x.GuardZoneRadius,
             x.HealPower), StringComparer.Ordinal);
+        if (roster is not null)
+        {
+            foreach (var monster in roster.Monsters)
+            {
+                if (!units.TryAdd(monster.Id, monster.Combat))
+                    throw new InvalidDataException($"Monster combat unit is duplicated in vertical-slice content: {monster.Id}.");
+            }
+        }
 
         var traps = dto.Traps.ToDictionary(x => x.Id, x => new TrapDefinition(
             x.Id, x.Damage, x.CooldownTicks, ParseNullable<StatusKind>(x.StatusKind), x.StatusStrength, x.StatusDurationTicks), StringComparer.Ordinal);
@@ -56,6 +71,7 @@ public static class VerticalSliceContentLoader
 
         return new DefenseContent
         {
+            MonsterRoster = roster,
             Units = units,
             Traps = traps,
             Facilities = facilities,

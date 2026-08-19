@@ -1015,7 +1015,7 @@ else
             TutorialFocusIntent.PassagePlacementAnchor => FindFirstValidDigCell() is { } dig && dig == point,
             TutorialFocusIntent.RoomPlacementFootprint => FindFirstValidPlacement(DefenseSliceBuildCatalog.GuardRoom.Id) is { } room && RoomFootprint(room).Contains(point),
             TutorialFocusIntent.TrapRouteCell => FindFirstValidPlacement(DefenseSliceBuildCatalog.SpikeTrap.Id) is { } trap && trap == point,
-            TutorialFocusIntent.GuardInterceptCell => FindFirstValidPlacement(DefenseSliceBuildCatalog.SkeletonWarrior.Id) is { } guard && guard == point,
+            TutorialFocusIntent.GuardInterceptCell => FindFirstValidPlacement(MonsterIds.SkeletonWarrior) is { } guard && guard == point,
             TutorialFocusIntent.LatestGuard => Board.Guards.LastOrDefault()?.Position == point,
             _ => false,
         };

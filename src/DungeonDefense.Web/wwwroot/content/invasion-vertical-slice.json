@@ -7,18 +7,6 @@
   "wipe_loot_percent": 50,
   "max_mp": 100,
   "mp_charge_per_tick": 1,
-  "formation_units": [
-    {
-      "unit_id": "monster.skeleton_warrior",
-      "deployment_cost": 2,
-      "archetype": "VANGUARD"
-    },
-    {
-      "unit_id": "monster.skeleton_archer",
-      "deployment_cost": 2,
-      "archetype": "BACKLINE_STRIKER"
-    }
-  ],
   "spells": [
     {
       "id": "invasion.spell.mend",

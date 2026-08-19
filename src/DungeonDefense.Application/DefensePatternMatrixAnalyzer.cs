@@ -33,8 +33,10 @@ public static class DefensePatternMatrixAnalyzer
         int seed = 4242,
         bool autoBattle = false)
     {
-        var session = DefenseSliceScenario.CreateSession();
-        var staticFiles = new DungeonStaticFileService(session.Editor);
+        var roster = baseContent.MonsterRoster
+            ?? throw new InvalidOperationException("Defense content must carry MonsterRosterContent for pattern analysis.");
+        var session = DefenseSliceScenario.CreateSession(roster);
+        var staticFiles = session.StaticFiles;
         var applied = staticFiles.ApplyPattern(pattern);
         if (!applied.Success) throw new InvalidOperationException($"Pattern {pattern.Id} could not be applied: {applied.Error}");
 

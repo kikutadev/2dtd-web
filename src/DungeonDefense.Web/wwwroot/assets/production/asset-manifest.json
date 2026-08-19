@@ -1072,6 +1072,54 @@
       "conversation_url": "https://chatgpt.com/c/6a79de59-b4cc-83ee-8955-bec7821c7c0a"
     },
     {
+      "id": "MN-03-E",
+      "name": "Goblin East",
+      "type": "unit_directional",
+      "category": "units/directional",
+      "status": "approved_with_notes",
+      "revision": 1,
+      "runtime_path": "res://assets/production/units/directional/MN-03-E.png",
+      "runtime_sha256": "a7fd39f29f0565ca9101854069b2d47dd92d8e140d3ab91c7cd710bab9f3a53b",
+      "provenance_file": "assets/production/themes/azure_core_rite/units/directional/MN-03-E.png",
+      "provenance_note": "Facing geometry derived from the approved Azure Core Rite directional sprite; palette projected onto the base canonical Monster palette and alpha hardened for base runtime use."
+    },
+    {
+      "id": "MN-03-N",
+      "name": "Goblin North",
+      "type": "unit_directional",
+      "category": "units/directional",
+      "status": "approved_with_notes",
+      "revision": 1,
+      "runtime_path": "res://assets/production/units/directional/MN-03-N.png",
+      "runtime_sha256": "1e97ca76ccd900fba6b03c46759ccfdcbed6ececf438a0f75e8db94b78ad4367",
+      "provenance_file": "assets/production/themes/azure_core_rite/units/directional/MN-03-N.png",
+      "provenance_note": "Facing geometry derived from the approved Azure Core Rite directional sprite; palette projected onto the base canonical Monster palette and alpha hardened for base runtime use."
+    },
+    {
+      "id": "MN-03-S",
+      "name": "Goblin South",
+      "type": "unit_directional",
+      "category": "units/directional",
+      "status": "approved_with_notes",
+      "revision": 1,
+      "runtime_path": "res://assets/production/units/directional/MN-03-S.png",
+      "runtime_sha256": "5ea0c544fe7fb736d7e9e5cc0d2e04e958ff998eb8891910cde876ef057eb623",
+      "provenance_file": "assets/production/themes/azure_core_rite/units/directional/MN-03-S.png",
+      "provenance_note": "Facing geometry derived from the approved Azure Core Rite directional sprite; palette projected onto the base canonical Monster palette and alpha hardened for base runtime use."
+    },
+    {
+      "id": "MN-03-W",
+      "name": "Goblin West",
+      "type": "unit_directional",
+      "category": "units/directional",
+      "status": "approved_with_notes",
+      "revision": 1,
+      "runtime_path": "res://assets/production/units/directional/MN-03-W.png",
+      "runtime_sha256": "0fa0843f82dfb1b60d1f98ef8802eb42e92af9d53ce9c10333892819ead0cc60",
+      "provenance_file": "assets/production/themes/azure_core_rite/units/directional/MN-03-W.png",
+      "provenance_note": "Facing geometry derived from the approved Azure Core Rite directional sprite; palette projected onto the base canonical Monster palette and alpha hardened for base runtime use."
+    },
+    {
       "id": "MN-04",
       "name": "Slime",
       "type": "monster_canonical",
@@ -1082,6 +1130,54 @@
       "runtime_sha256": "085c27dfa15aeb12ef76f2d023e5acd473c61faa908f4e62061b5b9a34e83eb3",
       "provenance_file": "../../assets/generated-candidates/units/MN-04-rev1-logical32.png",
       "conversation_url": "https://chatgpt.com/c/6a79de59-b4cc-83ee-8955-bec7821c7c0a"
+    },
+    {
+      "id": "MN-04-E",
+      "name": "Slime East",
+      "type": "unit_directional",
+      "category": "units/directional",
+      "status": "approved_with_notes",
+      "revision": 1,
+      "runtime_path": "res://assets/production/units/directional/MN-04-E.png",
+      "runtime_sha256": "e8975b61bcb244f3838dd4dbb289c98f88cd67824baf442893dbf10a551425dd",
+      "provenance_file": "assets/production/themes/azure_core_rite/units/directional/MN-04-E.png",
+      "provenance_note": "Facing geometry derived from the approved Azure Core Rite directional sprite; palette projected onto the base canonical Monster palette and alpha hardened for base runtime use."
+    },
+    {
+      "id": "MN-04-N",
+      "name": "Slime North",
+      "type": "unit_directional",
+      "category": "units/directional",
+      "status": "approved_with_notes",
+      "revision": 1,
+      "runtime_path": "res://assets/production/units/directional/MN-04-N.png",
+      "runtime_sha256": "9bf484259e3bf609ba0ac64e9ec563dd687636086d9d1fabe76d0c270c2548a2",
+      "provenance_file": "assets/production/themes/azure_core_rite/units/directional/MN-04-N.png",
+      "provenance_note": "Facing geometry derived from the approved Azure Core Rite directional sprite; palette projected onto the base canonical Monster palette and alpha hardened for base runtime use."
+    },
+    {
+      "id": "MN-04-S",
+      "name": "Slime South",
+      "type": "unit_directional",
+      "category": "units/directional",
+      "status": "approved_with_notes",
+      "revision": 1,
+      "runtime_path": "res://assets/production/units/directional/MN-04-S.png",
+      "runtime_sha256": "e97b4232f4fc06ffd6e8392e3f97894a02017d1d22598cfd4656200a5be95c5a",
+      "provenance_file": "assets/production/themes/azure_core_rite/units/directional/MN-04-S.png",
+      "provenance_note": "Facing geometry derived from the approved Azure Core Rite directional sprite; palette projected onto the base canonical Monster palette and alpha hardened for base runtime use."
+    },
+    {
+      "id": "MN-04-W",
+      "name": "Slime West",
+      "type": "unit_directional",
+      "category": "units/directional",
+      "status": "approved_with_notes",
+      "revision": 1,
+      "runtime_path": "res://assets/production/units/directional/MN-04-W.png",
+      "runtime_sha256": "e405f7cf0138b2079fb0de992651883f676ac279f3f51631628f39d6bb8b1a5d",
+      "provenance_file": "assets/production/themes/azure_core_rite/units/directional/MN-04-W.png",
+      "provenance_note": "Facing geometry derived from the approved Azure Core Rite directional sprite; palette projected onto the base canonical Monster palette and alpha hardened for base runtime use."
     },
     {
       "id": "MN-05",
@@ -1096,6 +1192,54 @@
       "conversation_url": "https://chatgpt.com/c/6a79de59-b4cc-83ee-8955-bec7821c7c0a"
     },
     {
+      "id": "MN-05-E",
+      "name": "Spider East",
+      "type": "unit_directional",
+      "category": "units/directional",
+      "status": "approved_with_notes",
+      "revision": 1,
+      "runtime_path": "res://assets/production/units/directional/MN-05-E.png",
+      "runtime_sha256": "61ee3a18cf5fc5e2515cea36f51df364ccdbbdb3ecdd1d324ec58a1072cac52f",
+      "provenance_file": "assets/production/themes/azure_core_rite/units/directional/MN-05-E.png",
+      "provenance_note": "Facing geometry derived from the approved Azure Core Rite directional sprite; palette projected onto the base canonical Monster palette and alpha hardened for base runtime use."
+    },
+    {
+      "id": "MN-05-N",
+      "name": "Spider North",
+      "type": "unit_directional",
+      "category": "units/directional",
+      "status": "approved_with_notes",
+      "revision": 1,
+      "runtime_path": "res://assets/production/units/directional/MN-05-N.png",
+      "runtime_sha256": "207cf0b5ea61580efedb98ee88e25865360549e476d2019eb1ad69fb13a41a19",
+      "provenance_file": "assets/production/themes/azure_core_rite/units/directional/MN-05-N.png",
+      "provenance_note": "Facing geometry derived from the approved Azure Core Rite directional sprite; palette projected onto the base canonical Monster palette and alpha hardened for base runtime use."
+    },
+    {
+      "id": "MN-05-S",
+      "name": "Spider South",
+      "type": "unit_directional",
+      "category": "units/directional",
+      "status": "approved_with_notes",
+      "revision": 1,
+      "runtime_path": "res://assets/production/units/directional/MN-05-S.png",
+      "runtime_sha256": "e183d52dd2e52621ec25811d8af7d66ff218ba055926b355b36307a16a6b435a",
+      "provenance_file": "assets/production/themes/azure_core_rite/units/directional/MN-05-S.png",
+      "provenance_note": "Facing geometry derived from the approved Azure Core Rite directional sprite; palette projected onto the base canonical Monster palette and alpha hardened for base runtime use."
+    },
+    {
+      "id": "MN-05-W",
+      "name": "Spider West",
+      "type": "unit_directional",
+      "category": "units/directional",
+      "status": "approved_with_notes",
+      "revision": 1,
+      "runtime_path": "res://assets/production/units/directional/MN-05-W.png",
+      "runtime_sha256": "4fcc52a7958cd106b3693070e8130eae9b0e64d336c43121b0a773ef144042c8",
+      "provenance_file": "assets/production/themes/azure_core_rite/units/directional/MN-05-W.png",
+      "provenance_note": "Facing geometry derived from the approved Azure Core Rite directional sprite; palette projected onto the base canonical Monster palette and alpha hardened for base runtime use."
+    },
+    {
       "id": "MN-06",
       "name": "Necromancer",
       "type": "monster_canonical",
@@ -1106,6 +1250,54 @@
       "runtime_sha256": "e3bf39a3b13d6110e98f562cbdb4b177e29348bcc070c1f565c60052fbc07605",
       "provenance_file": "../../assets/generated-candidates/units/MN-06-rev1-logical32.png",
       "conversation_url": "https://chatgpt.com/c/6a79de59-b4cc-83ee-8955-bec7821c7c0a"
+    },
+    {
+      "id": "MN-06-E",
+      "name": "Necromancer East",
+      "type": "unit_directional",
+      "category": "units/directional",
+      "status": "approved_with_notes",
+      "revision": 1,
+      "runtime_path": "res://assets/production/units/directional/MN-06-E.png",
+      "runtime_sha256": "78dd9678d2c701b9ae669f6c189449c9c2e7d61ad3a2c81164d75dfdff2d56af",
+      "provenance_file": "assets/production/themes/azure_core_rite/units/directional/MN-06-E.png",
+      "provenance_note": "Facing geometry derived from the approved Azure Core Rite directional sprite; palette projected onto the base canonical Monster palette and alpha hardened for base runtime use."
+    },
+    {
+      "id": "MN-06-N",
+      "name": "Necromancer North",
+      "type": "unit_directional",
+      "category": "units/directional",
+      "status": "approved_with_notes",
+      "revision": 1,
+      "runtime_path": "res://assets/production/units/directional/MN-06-N.png",
+      "runtime_sha256": "a4f8f6ceeb23ee7663b77e8304291bdcea0ccdb5724913a146b905f59c6fa5a4",
+      "provenance_file": "assets/production/themes/azure_core_rite/units/directional/MN-06-N.png",
+      "provenance_note": "Facing geometry derived from the approved Azure Core Rite directional sprite; palette projected onto the base canonical Monster palette and alpha hardened for base runtime use."
+    },
+    {
+      "id": "MN-06-S",
+      "name": "Necromancer South",
+      "type": "unit_directional",
+      "category": "units/directional",
+      "status": "approved_with_notes",
+      "revision": 1,
+      "runtime_path": "res://assets/production/units/directional/MN-06-S.png",
+      "runtime_sha256": "3c1ec9a5d184e66647549ffd25bfc56f2f0bde43e58707011d7101ed515f2779",
+      "provenance_file": "assets/production/themes/azure_core_rite/units/directional/MN-06-S.png",
+      "provenance_note": "Facing geometry derived from the approved Azure Core Rite directional sprite; palette projected onto the base canonical Monster palette and alpha hardened for base runtime use."
+    },
+    {
+      "id": "MN-06-W",
+      "name": "Necromancer West",
+      "type": "unit_directional",
+      "category": "units/directional",
+      "status": "approved_with_notes",
+      "revision": 1,
+      "runtime_path": "res://assets/production/units/directional/MN-06-W.png",
+      "runtime_sha256": "0251fc740943fef60847c7985d6da2057a69ede2f3fee0ba940151664030a544",
+      "provenance_file": "assets/production/themes/azure_core_rite/units/directional/MN-06-W.png",
+      "provenance_note": "Facing geometry derived from the approved Azure Core Rite directional sprite; palette projected onto the base canonical Monster palette and alpha hardened for base runtime use."
     },
     {
       "id": "RP-01",

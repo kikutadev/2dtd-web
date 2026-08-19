@@ -11,6 +11,7 @@ public static class DefenseContentExtensions
 {
     public static DefenseContent WithWaves(this DefenseContent content, IReadOnlyList<WaveDefinition> waves) => new()
     {
+        MonsterRoster = content.MonsterRoster,
         Units = content.Units,
         Traps = content.Traps,
         Facilities = content.Facilities,

@@ -66,7 +66,9 @@ public static class SecondRegionJourneyAnalyzer
         if (!string.Equals(schedule.RegionId, RegionId, StringComparison.Ordinal))
             throw new InvalidOperationException($"Second-region analyzer requires {RegionId} schedule.");
 
-        var campaign = CampaignGameSession.FromSave(startingSave, progression, invasionContent, regions);
+        var roster = baseContent.MonsterRoster
+            ?? throw new InvalidOperationException("Second-region journey requires MonsterRosterContent on DefenseContent.");
+        var campaign = CampaignGameSession.FromSave(startingSave, progression, invasionContent, regions, roster);
         if (!string.Equals(campaign.State.RegionId, RegionId, StringComparison.Ordinal) || campaign.State.Day != 1)
             throw new InvalidOperationException("Second-region journey must start at Deep Crypt Day 1.");
         if (!string.Equals(campaign.State.Dungeon.DeepestFloor.BoardProfileId, DungeonBoardProfiles.DeepCryptId, StringComparison.Ordinal))
@@ -99,10 +101,25 @@ public static class SecondRegionJourneyAnalyzer
                 var analysis = DungeonBuildAnalyzer.Analyze(campaign.Defense.Editor.Current, content);
                 var simulation = campaign.StartDefense(content, scenarioSeed);
                 var auto = policy.AutoBattle ? campaign.Defense.CreateAutoBattleController() : null;
-                while (simulation.Outcome == DefenseOutcome.Running)
+                var defenseTickGuard = 0;
+                while (simulation.Outcome == DefenseOutcome.Running && defenseTickGuard++ < 50_000)
                 {
                     auto?.TryQueueAction(simulation);
                     simulation.Step();
+                }
+                if (simulation.Outcome == DefenseOutcome.Running)
+                {
+                    var aliveGuards = string.Join(',', simulation.Units
+                        .Where(x => x.Alive && x.Team == Team.Dungeon)
+                        .GroupBy(x => x.DefinitionId, StringComparer.Ordinal)
+                        .OrderBy(x => x.Key, StringComparer.Ordinal)
+                        .Select(x => $"{x.Key}:{x.Count()}:{x.Sum(y => y.Hp)}hp"));
+                    var aliveInvaders = string.Join(',', simulation.Units
+                        .Where(x => x.Alive && x.Team == Team.Invader)
+                        .GroupBy(x => x.DefinitionId, StringComparer.Ordinal)
+                        .OrderBy(x => x.Key, StringComparer.Ordinal)
+                        .Select(x => $"{x.Key}:{x.Count()}:{x.Sum(y => y.Hp)}hp"));
+                    throw new InvalidOperationException($"Journey defense exceeded 50,000 ticks: region={campaign.State.RegionId} day={day} attempt={attemptsThisDay} seed={scenarioSeed} assault={scenario.AssaultProfileId} guards=[{aliveGuards}] invaders=[{aliveInvaders}].");
                 }
                 totalAttempts++;
                 attemptsThisDay++;

@@ -6,6 +6,9 @@ namespace DungeonDefense.Infrastructure;
 [JsonSerializable(typeof(VerticalSliceContentLoader.DefenseContentDto))]
 internal sealed partial class VerticalSliceJsonContext : JsonSerializerContext;
 
+[JsonSerializable(typeof(MonsterRosterContentLoader.MonsterRosterFile))]
+internal sealed partial class MonsterRosterJsonContext : JsonSerializerContext;
+
 [JsonSerializable(typeof(DefenseAssaultProfileLoader.ProfileFileDto))]
 internal sealed partial class AssaultProfileJsonContext : JsonSerializerContext;
 

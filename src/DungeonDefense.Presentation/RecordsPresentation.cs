@@ -13,12 +13,24 @@ public enum RecordsCategory
     ChallengeRecords,
 }
 
+/// <summary>Typed host-neutral record/codex entry. Hosts never parse ad-hoc formatted strings to recover semantics.</summary>
 public sealed record RecordsEntryVisualState(
     string Id,
     bool Discovered,
-    string PrimaryText,
-    string SecondaryText = "",
-    string? RelatedId = null);
+    string PrimaryId,
+    string? RegionId = null,
+    string? RelatedId = null,
+    int? Day = null,
+    int? FinalDay = null,
+    DefenseOutcome? DefenseOutcome = null,
+    InvasionOutcome? InvasionOutcome = null,
+    ChallengeMode? ChallengeMode = null,
+    int? CoreHp = null,
+    int? CoreMaxHp = null,
+    int? DeepestFloorDepth = null,
+    string? FloorId = null,
+    bool? FirstClear = null,
+    int? Score = null);
 
 public sealed record RecordsCategoryVisualState(RecordsCategory Category, IReadOnlyList<RecordsEntryVisualState> Entries);
 
@@ -52,16 +64,22 @@ public static class RecordsPresentation
                 .Distinct(StringComparer.Ordinal).OrderBy(x => x, StringComparer.Ordinal)
                 .Select(x => new RecordsEntryVisualState(x, IsDiscovered(CampaignDiscoveryCategory.TrapFacility, x), x)).ToArray(),
             RecordsCategory.Regions => regions.Regions
-                .Select(x => new RecordsEntryVisualState(x.Id, IsDiscovered(CampaignDiscoveryCategory.Region, x.Id), x.Id, $"final_day={x.FinalDefenseDay}"))
+                .Select(x => new RecordsEntryVisualState(x.Id, IsDiscovered(CampaignDiscoveryCategory.Region, x.Id), x.Id, RegionId: x.Id, RelatedId: x.Id, FinalDay: x.FinalDefenseDay))
                 .ToArray(),
             RecordsCategory.DefenseRecords => state.Records.DefenseRecords.Reverse()
-                .Select(x => new RecordsEntryVisualState(x.RecordId, true, x.RegionId, $"day={x.Day}|outcome={x.Outcome}|core={x.CoreHp}/{x.CoreMaxHp}|deepest={x.DeepestFloorDepth}"))
+                .Select(x => new RecordsEntryVisualState(
+                    x.RecordId, true, x.RegionId, RegionId: x.RegionId, RelatedId: x.RegionId, Day: x.Day,
+                    DefenseOutcome: x.Outcome, CoreHp: x.CoreHp, CoreMaxHp: x.CoreMaxHp, DeepestFloorDepth: x.DeepestFloorDepth))
                 .ToArray(),
             RecordsCategory.InvasionRecords => state.Records.InvasionRecords.Reverse()
-                .Select(x => new RecordsEntryVisualState(x.RecordId, true, x.LocationId, $"day={x.Day}|floor={x.FloorId}|outcome={x.Outcome}|first={x.FirstClear}", x.FloorId))
+                .Select(x => new RecordsEntryVisualState(
+                    x.RecordId, true, x.LocationId, RegionId: x.RegionId, RelatedId: x.FloorId, Day: x.Day,
+                    InvasionOutcome: x.Outcome, FloorId: x.FloorId, FirstClear: x.FirstClear))
                 .ToArray(),
             RecordsCategory.ChallengeRecords => state.Records.ChallengeRecords.Reverse()
-                .Select(x => new RecordsEntryVisualState(x.RecordId, true, x.ArchiveId, $"day={x.Day}|mode={x.Mode}|outcome={x.Outcome}|score={x.Score}", x.ArchiveId))
+                .Select(x => new RecordsEntryVisualState(
+                    x.RecordId, true, x.ArchiveId, RegionId: x.RegionId, RelatedId: x.ArchiveId, Day: x.Day,
+                    DefenseOutcome: x.Outcome, ChallengeMode: x.Mode, Score: x.Score))
                 .ToArray(),
             _ => throw new ArgumentOutOfRangeException(nameof(category), category, null),
         };

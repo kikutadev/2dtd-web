@@ -16,16 +16,21 @@ public sealed record DungeonStaticPreview(
 public sealed class DungeonStaticFileService
 {
     private readonly DungeonEditorSession _editor;
+    private readonly MonsterRosterContent? _monsterRoster;
+    private readonly HashSet<string> _knownContentIds;
     private readonly IReadOnlySet<string> _availableContentIds;
     private readonly string? _boardProfileId;
 
     public DungeonStaticFileService(
         DungeonEditorSession editor,
+        MonsterRosterContent? monsterRoster = null,
         IReadOnlySet<string>? availableContentIds = null,
         string? boardProfileId = null)
     {
         _editor = editor;
-        _availableContentIds = availableContentIds ?? KnownContentIds;
+        _monsterRoster = monsterRoster;
+        _knownContentIds = BuildKnownContentIds(monsterRoster);
+        _availableContentIds = availableContentIds ?? _knownContentIds;
         _boardProfileId = boardProfileId;
     }
 
@@ -112,7 +117,7 @@ public sealed class DungeonStaticFileService
             SemanticCommand command;
             try { command = ToSemanticCommand(commandFile); }
             catch (InvalidOperationException ex) { return Failed(file.Id, file.Name, ex.Message); }
-            var result = DefenseEditCommandService.Evaluate(candidate, command);
+            var result = DefenseEditCommandService.Evaluate(candidate, command, _monsterRoster);
             if (!result.Success) return Failed(file.Id, file.Name, $"{command.Type}: {result.Error}");
             candidate = result.State;
         }
@@ -153,8 +158,12 @@ public sealed class DungeonStaticFileService
         var guards = new List<PlacedGuard>();
         foreach (var source in file.Construction.Guards)
         {
-            var definition = DefenseSliceBuildCatalog.Guards.SingleOrDefault(x => x.Id == source.DefinitionId);
-            if (definition is null) { error = $"Unknown guard definition: {source.DefinitionId}"; return null; }
+            if (_monsterRoster is null || !_monsterRoster.TryMonster(source.DefinitionId, out var monster))
+            {
+                error = $"Unknown guard definition: {source.DefinitionId}";
+                return null;
+            }
+            var definition = DefenseSliceBuildCatalog.ToGuardOption(monster);
             var position = new GridPoint(source.X, source.Y);
             // Guard-room affiliation is derived from the final room geometry. Keeping it derived avoids
             // duplicating room identity in static blueprint files while preserving runtime semantics.
@@ -238,16 +247,17 @@ public sealed class DungeonStaticFileService
     private string? ValidateContentAvailability(IEnumerable<string> ids)
     {
         var requested = ids.Distinct(StringComparer.Ordinal).ToArray();
-        var unknown = requested.Where(x => !KnownContentIds.Contains(x)).ToArray();
+        var unknown = requested.Where(x => !_knownContentIds.Contains(x)).ToArray();
         if (unknown.Length > 0) return $"UNKNOWN_CONTENT: {string.Join(", ", unknown)}";
         var locked = requested.Where(x => !_availableContentIds.Contains(x)).ToArray();
         return locked.Length > 0 ? $"CONTENT_LOCKED: {string.Join(", ", locked)}" : null;
     }
 
-    private static HashSet<string> KnownContentIds { get; } = DefenseSliceBuildCatalog.Rooms
-        .Concat(DefenseSliceBuildCatalog.Traps)
-        .Concat(DefenseSliceBuildCatalog.Guards)
-        .Concat(DefenseSliceBuildCatalog.Facilities)
-        .Select(x => x.Id)
-        .ToHashSet(StringComparer.Ordinal);
+    private static HashSet<string> BuildKnownContentIds(MonsterRosterContent? monsterRoster)
+        => DefenseSliceBuildCatalog.Rooms
+            .Concat(DefenseSliceBuildCatalog.Traps)
+            .Concat(monsterRoster is null ? [] : DefenseSliceBuildCatalog.Guards(monsterRoster))
+            .Concat(DefenseSliceBuildCatalog.Facilities)
+            .Select(x => x.Id)
+            .ToHashSet(StringComparer.Ordinal);
 }

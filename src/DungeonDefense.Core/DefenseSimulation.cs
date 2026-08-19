@@ -652,39 +652,34 @@ public sealed class DefenseSimulation
     {
         foreach (var guard in AliveGuards(CurrentFloor.Id).OrderBy(x => x.EntityId, StringComparer.Ordinal))
         {
-            if (CombatStatusRules.HasStatus(guard.Statuses, StatusKind.Freeze) || Tick < guard.NextAttackTick || guard.TargetEntityId is null) continue;
+            if (CombatStatusRules.HasStatus(guard.Statuses, StatusKind.Freeze) || Tick < guard.NextAttackTick) continue;
+            if (TryHealAlly(guard, AliveGuards(CurrentFloor.Id)))
+            {
+                guard.NextAttackTick = Tick + Math.Max(1, guard.Definition.AttackCooldownTicks);
+                continue;
+            }
+            if (guard.TargetEntityId is null) continue;
             var target = AliveInvaders(CurrentFloor.Id).SingleOrDefault(x => x.EntityId == guard.TargetEntityId);
-            if (target is null || guard.Position.ManhattanDistance(target.Position) > guard.Definition.AttackRange) continue;
-            if (guard.Definition.AttackRange > 1 && !DungeonLineOfSight.HasLineOfSight(CurrentFloor.Board, guard.Position, target.Position)) continue;
+            if (target is null || !CombatUnitBehaviorRules.CanAttack(CurrentFloor.Board, guard.Position, guard.Definition.AttackRange, target.Position)) continue;
             DealDamage(guard, target, ApplyExecutionBonus(EffectiveGuardDamage(guard), target));
+            ApplyUnitAttackStatus(guard, target);
             guard.NextAttackTick = Tick + Math.Max(1, guard.Definition.AttackCooldownTicks);
         }
 
         foreach (var invader in AliveInvaders(CurrentFloor.Id).OrderBy(x => x.EntityId, StringComparer.Ordinal))
         {
             if (CombatStatusRules.HasStatus(invader.Statuses, StatusKind.Freeze) || Tick < invader.NextAttackTick) continue;
-            if (invader.Definition.Role == UnitRole.Priest && invader.Definition.HealPower > 0)
+            if (TryHealAlly(invader, AliveInvaders(CurrentFloor.Id)))
             {
-                var ally = AliveInvaders(CurrentFloor.Id)
-                    .Where(x => x.EntityId != invader.EntityId && x.Hp < x.MaxHp && x.Position.ManhattanDistance(invader.Position) <= invader.Definition.AttackRange)
-                    .Where(x => DungeonLineOfSight.HasLineOfSight(CurrentFloor.Board, invader.Position, x.Position))
-                    .OrderBy(x => (double)x.Hp / x.MaxHp)
-                    .ThenBy(x => x.EntityId, StringComparer.Ordinal)
-                    .FirstOrDefault();
-                if (ally is not null)
-                {
-                    var before = ally.Hp;
-                    ally.Hp = Math.Min(ally.MaxHp, ally.Hp + invader.Definition.HealPower);
-                    Events.Add(new DefenseEvent(Tick, DefenseEventType.Heal, invader.EntityId, ally.EntityId, ally.Position, ally.Hp - before, FloorId: invader.FloorId, SourcePosition: invader.Position, SourceDefinitionId: invader.Definition.Id));
-                    invader.NextAttackTick = Tick + Math.Max(1, invader.Definition.AttackCooldownTicks);
-                    continue;
-                }
+                invader.NextAttackTick = Tick + Math.Max(1, invader.Definition.AttackCooldownTicks);
+                continue;
             }
 
             var guard = invader.TargetEntityId is null ? null : AliveGuards(CurrentFloor.Id).SingleOrDefault(x => x.EntityId == invader.TargetEntityId);
-            if (guard is not null && invader.Position.ManhattanDistance(guard.Position) <= invader.Definition.AttackRange)
+            if (guard is not null && CombatUnitBehaviorRules.CanAttack(CurrentFloor.Board, invader.Position, invader.Definition.AttackRange, guard.Position))
             {
                 DealDamage(invader, guard, invader.Definition.Damage);
+                ApplyUnitAttackStatus(invader, guard);
                 invader.NextAttackTick = Tick + Math.Max(1, invader.Definition.AttackCooldownTicks);
             }
             else if (CurrentFloor.EndpointKind == FloorEndpointKind.DungeonCore
@@ -710,6 +705,31 @@ public sealed class DefenseSimulation
             if (definition.StatusKind is { } kind && target.Alive)
                 ApplyStatus(target, new StatusEffect(kind, definition.StatusStrength, definition.StatusDurationTicks), DisplayPlacementId(CurrentFloor.Id, placed.InstanceId));
         }
+    }
+
+    private bool TryHealAlly(RuntimeUnit healer, IEnumerable<RuntimeUnit> allies)
+    {
+        if (healer.Definition.HealPower <= 0) return false;
+        var candidates = allies
+            .Where(x => x.EntityId != healer.EntityId)
+            .Select((x, index) => new CombatAllyCandidate(x.EntityId, x.Position, x.Hp, x.MaxHp, x.Definition.Role, index))
+            .ToArray();
+        var floor = _floorById[healer.FloorId];
+        var decision = CombatUnitBehaviorRules.SelectHealTarget(healer.Definition, healer.Position, candidates, floor.Board);
+        if (decision is null || decision.Amount <= 0) return false;
+        var target = allies.Single(x => x.EntityId == decision.TargetEntityId);
+        target.Hp = Math.Min(target.MaxHp, target.Hp + decision.Amount);
+        Events.Add(new DefenseEvent(
+            Tick, DefenseEventType.Heal, healer.EntityId, target.EntityId, target.Position, decision.Amount,
+            FloorId: healer.FloorId, SourcePosition: healer.Position, SourceDefinitionId: healer.Definition.Id));
+        return true;
+    }
+
+    private void ApplyUnitAttackStatus(RuntimeUnit attacker, RuntimeUnit target)
+    {
+        if (!target.Alive) return;
+        if (CombatUnitBehaviorRules.AttackStatus(attacker.Definition) is { } status)
+            ApplyStatus(target, status, attacker.EntityId);
     }
 
     private void StatusAndTimePhase()

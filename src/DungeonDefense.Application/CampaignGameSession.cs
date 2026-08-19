@@ -42,16 +42,19 @@ public sealed class CampaignGameSession
         CampaignProgressionContent progression,
         RegionCampaignContent? regions = null,
         CampaignNarrativeProgress? narrativeProgress = null,
-        bool emitCampaignStartedTransition = true)
+        bool emitCampaignStartedTransition = true,
+        MonsterRosterContent? monsterRoster = null)
     {
         ArgumentNullException.ThrowIfNull(initialState);
         ArgumentNullException.ThrowIfNull(progression);
         _state = initialState.Clone();
         Progression = progression;
         Regions = regions;
+        MonsterRoster = monsterRoster;
         _narrativeProgress = narrativeProgress?.Clone() ?? new CampaignNarrativeProgress();
-        Defense = new DefenseGameSession(_state.Dungeon);
+        Defense = CreateDefenseSession();
         RefreshAutomaticUnlocks(emitTransitions: false);
+        Defense.RefreshMonsterAvailability();
         if (emitCampaignStartedTransition)
             Emit(new CampaignTransitionEvent(CampaignTransitionKind.CampaignStarted, Day: _state.Day, RegionId: _state.RegionId));
     }
@@ -60,11 +63,12 @@ public sealed class CampaignGameSession
         CampaignSaveFile file,
         CampaignProgressionContent progression,
         InvasionContent? invasionContent = null,
-        RegionCampaignContent? regions = null)
+        RegionCampaignContent? regions = null,
+        MonsterRosterContent? monsterRoster = null)
     {
-        var imported = CampaignSaveService.Import(file, progression.ContentVersion);
-        ValidateSaveContentReferences(imported.State, progression, invasionContent, regions);
-        var session = new CampaignGameSession(imported.State, progression, regions, imported.NarrativeProgress, emitCampaignStartedTransition: false);
+        var imported = CampaignSaveService.Import(file, progression.ContentVersion, monsterRoster);
+        ValidateSaveContentReferences(imported.State, progression, invasionContent, regions, monsterRoster);
+        var session = new CampaignGameSession(imported.State, progression, regions, imported.NarrativeProgress, emitCampaignStartedTransition: false, monsterRoster: monsterRoster);
         session.Defense.SelectFloor(imported.SelectedFloorId.Value);
         if (imported.ActiveInvasion is { } suspended)
         {
@@ -85,7 +89,8 @@ public sealed class CampaignGameSession
         CampaignState state,
         CampaignProgressionContent progression,
         InvasionContent? invasionContent,
-        RegionCampaignContent? regions)
+        RegionCampaignContent? regions,
+        MonsterRosterContent? monsterRoster)
     {
         var researchById = progression.Research.ToDictionary(x => x.Id, StringComparer.Ordinal);
         foreach (var researchId in state.CompletedResearch)
@@ -95,6 +100,17 @@ public sealed class CampaignGameSession
             foreach (var requiredId in research.RequiredResearchIds ?? [])
                 if (!state.HasCompletedResearch(requiredId))
                     throw new InvalidDataException($"Campaign save research prerequisite is missing: {researchId} requires {requiredId}.");
+        }
+
+        if (monsterRoster is not null)
+        {
+            foreach (var guard in state.Dungeon.Floors.SelectMany(x => x.Board.Guards))
+            {
+                if (!monsterRoster.TryMonster(guard.DefinitionId, out _))
+                    throw new InvalidDataException($"Campaign save references unknown monster guard: {guard.DefinitionId}.");
+                if (!monsterRoster.IsAvailable(state, guard.DefinitionId))
+                    throw new InvalidDataException($"Campaign save contains a guard that is not unlocked: {guard.DefinitionId}.");
+            }
         }
 
         var speciesMaxLevels = progression.SpeciesUpgrades
@@ -175,6 +191,7 @@ public sealed class CampaignGameSession
 
     public CampaignProgressionContent Progression { get; }
     public RegionCampaignContent? Regions { get; }
+    public MonsterRosterContent? MonsterRoster { get; }
     public CampaignState State => SnapshotCurrentState();
     public bool IsCampaignContentComplete
     {
@@ -327,6 +344,7 @@ public sealed class CampaignGameSession
             EmitDayAdvanced();
         }
         var unlocked = RefreshAutomaticUnlocks();
+        Defense.RefreshMonsterAvailability();
         return new DefenseResolution(
             DefenseOutcome.Success, completedDay, _state.Day, reward, unlocked, regionCleared,
             regionCleared ? clearedRegionId : null, _state.RegionId, archiveId);
@@ -341,15 +359,21 @@ public sealed class CampaignGameSession
         if (!_activeDefenseResolved) ResolveCompletedDefense();
         Defense.ReturnToPreparation();
         if (outcome == DefenseOutcome.Failure || _regionAdvancedOnDefenseResolution)
-            Defense = new DefenseGameSession(_state.Dungeon);
+            Defense = CreateDefenseSession();
 
         _attemptSnapshot = null;
         _activeDefenseResolved = false;
         _regionAdvancedOnDefenseResolution = false;
     }
 
+    private DefenseGameSession CreateDefenseSession()
+        => new(
+            _state.Dungeon,
+            MonsterRoster,
+            MonsterRoster is null ? null : id => MonsterRoster.IsAvailable(_state, id));
+
     public InvasionContent EffectiveInvasionContent(InvasionContent content)
-        => CampaignInvasionContentService.ApplyProgression(content, _state, Progression);
+        => CampaignInvasionContentService.ApplyProgression(content, _state, Progression, MonsterRoster);
 
     public InvasionScoutReport ScoutInvasion(InvasionContent content, string locationId, string floorId, int scenarioSeed = 0)
         => InvasionCampaignService.Scout(SnapshotCurrentState(), EffectiveInvasionContent(content), locationId, floorId, scenarioSeed);
@@ -519,6 +543,7 @@ public sealed class CampaignGameSession
         foreach (var unlockId in definition.UnlockIds)
             if (_state.AddUnlock(unlockId)) EmitUnlockGranted(unlockId);
         RefreshAutomaticUnlocks();
+        Defense.RefreshMonsterAvailability();
         return CampaignActionResult.Ok();
     }
 
@@ -538,6 +563,7 @@ public sealed class CampaignGameSession
         foreach (var unlockId in definition.UnlockIds)
             if (_state.AddUnlock(unlockId)) EmitUnlockGranted(unlockId);
         RefreshAutomaticUnlocks();
+        Defense.RefreshMonsterAvailability();
         return CampaignActionResult.Ok();
     }
 

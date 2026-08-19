@@ -88,13 +88,26 @@ public static class DefenseSliceBuildCatalog
         PushMagnitudeBonus: 1);
     public static readonly BuildOption SpikeTrap = new("trap.spike", "Spike", BuildKind.Trap, 3);
     public static readonly BuildOption PoisonTrap = new("trap.poison", "Poison", BuildKind.Trap, 4);
-    public static readonly BuildOption SkeletonWarrior = new("monster.skeleton_warrior", "Skeleton Warrior", BuildKind.Guard, 6, GuardZoneRadius: 2);
-    public static readonly BuildOption SkeletonArcher = new("monster.skeleton_archer", "Skeleton Archer", BuildKind.Guard, 5, GuardZoneRadius: 3);
     public static readonly BuildOption ArrowSlit = new("facility.arrow_slit", "Arrow Slit", BuildKind.Facility, 8);
     public static readonly BuildOption MagicEye = new("facility.magic_eye", "Magic Eye", BuildKind.Facility, 8);
 
     public static IReadOnlyList<BuildOption> Rooms { get; } = [GuardRoom, PoisonChamber, ExecutionChamber, ManaChamber];
     public static IReadOnlyList<BuildOption> Traps { get; } = [SpikeTrap, PoisonTrap];
-    public static IReadOnlyList<BuildOption> Guards { get; } = [SkeletonWarrior, SkeletonArcher];
+    public static IReadOnlyList<BuildOption> Guards(MonsterRosterContent roster)
+    {
+        ArgumentNullException.ThrowIfNull(roster);
+        return roster.Monsters.Select(ToGuardOption).ToArray();
+    }
+
+    public static BuildOption ToGuardOption(MonsterDefinition monster)
+    {
+        ArgumentNullException.ThrowIfNull(monster);
+        return new BuildOption(
+            monster.Id,
+            monster.Id,
+            BuildKind.Guard,
+            monster.Defense.CapacityCost,
+            GuardZoneRadius: monster.Defense.GuardZoneRadius);
+    }
     public static IReadOnlyList<BuildOption> Facilities { get; } = [ArrowSlit, MagicEye];
 }

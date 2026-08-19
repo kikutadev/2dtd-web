@@ -25,8 +25,9 @@ internal sealed class DungeonBuildDemo
     {
         _content = content ?? throw new ArgumentNullException(nameof(content));
         ArgumentNullException.ThrowIfNull(save);
-        var imported = PlayerDungeonSaveService.Import(save);
-        Session = new DefenseGameSession(imported.Dungeon);
+        var roster = _content.MonsterRoster ?? throw new InvalidOperationException("Web build demo requires MonsterRosterContent.");
+        var imported = PlayerDungeonSaveService.Import(save, roster);
+        Session = new DefenseGameSession(imported.Dungeon, roster);
         Session.SelectFloor(imported.SelectedFloorId.Value);
         _nextInstanceNumber = NextInstanceNumber(Session.Editor.Current);
     }
@@ -35,13 +36,20 @@ internal sealed class DungeonBuildDemo
 
     public DungeonState Board => Session.Editor.Current;
 
-    public IReadOnlyList<BuildOption> BuildOptions { get; } =
-    [
-        .. DefenseSliceBuildCatalog.Rooms,
-        .. DefenseSliceBuildCatalog.Traps,
-        .. DefenseSliceBuildCatalog.Guards,
-        .. DefenseSliceBuildCatalog.Facilities,
-    ];
+    public IReadOnlyList<BuildOption> BuildOptions
+    {
+        get
+        {
+            var roster = _content.MonsterRoster ?? throw new InvalidOperationException("Web build demo requires MonsterRosterContent.");
+            return
+            [
+                .. DefenseSliceBuildCatalog.Rooms,
+                .. DefenseSliceBuildCatalog.Traps,
+                .. DefenseSliceBuildCatalog.Guards(roster),
+                .. DefenseSliceBuildCatalog.Facilities,
+            ];
+        }
+    }
 
     public DefenseStartValidationResult StartValidation
         => DefenseStartValidator.Validate(Session.Dungeon, _content);
@@ -52,7 +60,7 @@ internal sealed class DungeonBuildDemo
     /// <summary>Starts again from the production defense-slice board, preserving its valid entrance-to-core route.</summary>
     public void Reset()
     {
-        Session = DefenseSliceScenario.CreateSession();
+        Session = DefenseSliceScenario.CreateSession(_content.MonsterRoster ?? throw new InvalidOperationException("Web build demo requires MonsterRosterContent."));
         _nextInstanceNumber = 1;
     }
 

@@ -38,6 +38,15 @@ public enum DarkSpiritExpression
 /// </summary>
 public static class ProductAssetIdentity
 {
+    private static Dictionary<string, string> _monsterAssets = new(StringComparer.Ordinal);
+
+    /// <summary>Configures player-monster visual identities from the Monster Roster content authority.</summary>
+    public static void ConfigureMonsterAssets(MonsterRosterContent roster)
+    {
+        ArgumentNullException.ThrowIfNull(roster);
+        _monsterAssets = roster.Monsters.ToDictionary(x => x.Id, x => x.AssetId, StringComparer.Ordinal);
+    }
+
     public static ProductAssetRef Tile(TileKind kind) => kind switch
     {
         TileKind.Bedrock => new(ProductAssetCategory.Tile, "TS-02"),
@@ -72,26 +81,25 @@ public static class ProductAssetIdentity
         _ => null,
     };
 
-    public static ProductAssetRef? UnitCanonical(string definitionId) => definitionId switch
+    public static ProductAssetRef? UnitCanonical(string definitionId)
     {
-        "monster.skeleton_warrior" => new(ProductAssetCategory.Unit, "MN-01"),
-        "monster.skeleton_archer" => new(ProductAssetCategory.Unit, "MN-02"),
-        "monster.goblin" => new(ProductAssetCategory.Unit, "MN-03"),
-        "monster.slime" => new(ProductAssetCategory.Unit, "MN-04"),
-        "monster.spider" => new(ProductAssetCategory.Unit, "MN-05"),
-        "monster.necromancer" => new(ProductAssetCategory.Unit, "MN-06"),
-        "human.warrior" => new(ProductAssetCategory.Unit, "HU-01"),
-        "human.archer" => new(ProductAssetCategory.Unit, "HU-02"),
-        "human.priest" => new(ProductAssetCategory.Unit, "HU-03"),
-        "human.knight" => new(ProductAssetCategory.Unit, "HU-04"),
-        "human.mage" => new(ProductAssetCategory.Unit, "HU-05"),
-        "human.scout" => new(ProductAssetCategory.Unit, "HU-06"),
-        "human.crossbowman" => new(ProductAssetCategory.Unit, "HU-07"),
-        "human.berserker" => new(ProductAssetCategory.Unit, "HU-08"),
-        "human.high_priest" => new(ProductAssetCategory.Unit, "HU-09"),
-        "human.hero" => new(ProductAssetCategory.Unit, "BS-01"),
-        _ => null,
-    };
+        if (_monsterAssets.TryGetValue(definitionId, out var monsterAssetId))
+            return new ProductAssetRef(ProductAssetCategory.Unit, monsterAssetId);
+        return definitionId switch
+        {
+            "human.warrior" => new(ProductAssetCategory.Unit, "HU-01"),
+            "human.archer" => new(ProductAssetCategory.Unit, "HU-02"),
+            "human.priest" => new(ProductAssetCategory.Unit, "HU-03"),
+            "human.knight" => new(ProductAssetCategory.Unit, "HU-04"),
+            "human.mage" => new(ProductAssetCategory.Unit, "HU-05"),
+            "human.scout" => new(ProductAssetCategory.Unit, "HU-06"),
+            "human.crossbowman" => new(ProductAssetCategory.Unit, "HU-07"),
+            "human.berserker" => new(ProductAssetCategory.Unit, "HU-08"),
+            "human.high_priest" => new(ProductAssetCategory.Unit, "HU-09"),
+            "human.hero" => new(ProductAssetCategory.Unit, "BS-01"),
+            _ => null,
+        };
+    }
 
     public static ProductAssetRef? Unit(string definitionId, UnitFacing facing)
         => UnitCanonical(definitionId) is { } canonical

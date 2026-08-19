@@ -82,7 +82,10 @@ public static class CampaignSaveService
                 .Select(x => new CampaignEquippedCosmeticFile(x.Key, x.Value)).ToArray());
     }
 
-    public static CampaignSaveImportResult Import(CampaignSaveFile file, string expectedContentVersion)
+    public static CampaignSaveImportResult Import(
+        CampaignSaveFile file,
+        string expectedContentVersion,
+        MonsterRosterContent? monsterRoster = null)
     {
         ArgumentNullException.ThrowIfNull(file);
         if (file.SchemaVersion is not (3 or 4) || !string.Equals(file.Kind, "campaign_save", StringComparison.Ordinal))
@@ -92,7 +95,7 @@ public static class CampaignSaveService
         if (file.Day <= 0) throw new InvalidDataException("Campaign Day must be positive.");
         if (string.IsNullOrWhiteSpace(file.RegionId)) throw new InvalidDataException("Campaign region_id is required.");
 
-        var dungeon = PlayerDungeonSaveService.Import(file.Dungeon);
+        var dungeon = PlayerDungeonSaveService.Import(file.Dungeon, monsterRoster);
         ArgumentNullException.ThrowIfNull(file.Resources);
         var resources = ToDomain(file.Resources);
         if (resources.Stone < 0 || resources.Iron < 0 || resources.Soul < 0 || resources.Relic < 0)
@@ -119,7 +122,7 @@ public static class CampaignSaveService
             x.RegionId,
             x.ClearedDay,
             x.FinalAssaultProfileId,
-            PlayerDungeonSaveService.Import(x.Dungeon).Dungeon));
+            PlayerDungeonSaveService.Import(x.Dungeon, monsterRoster).Dungeon));
         var challengeBestScores = (file.ChallengeBestScores ?? []).ToDictionary(x => x.Key, x => x.BestScore, StringComparer.Ordinal);
         if (file.SeenNarrativeBeatIds is null)
             throw new InvalidDataException("Campaign save seen_narrative_beat_ids is required.");

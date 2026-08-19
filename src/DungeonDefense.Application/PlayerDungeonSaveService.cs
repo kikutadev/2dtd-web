@@ -19,13 +19,13 @@ public static class PlayerDungeonSaveService
         return new PlayerDungeonSaveFile(2, "player_dungeon_save", dungeon.DungeonId, selected.Value, floors);
     }
 
-    public static PlayerDungeonSaveImportResult Import(PlayerDungeonSaveFile file)
+    public static PlayerDungeonSaveImportResult Import(PlayerDungeonSaveFile file, MonsterRosterContent? monsterRoster = null)
     {
         ArgumentNullException.ThrowIfNull(file);
         if (file.SchemaVersion != 2 || !string.Equals(file.Kind, "player_dungeon_save", StringComparison.Ordinal))
             throw new InvalidDataException("Unsupported player dungeon save schema/kind.");
 
-        var floors = file.Floors.OrderBy(x => x.Depth).Select(ImportFloor).ToArray();
+        var floors = file.Floors.OrderBy(x => x.Depth).Select(x => ImportFloor(x, monsterRoster)).ToArray();
         var dungeon = new PlayerDungeonState(file.DungeonId, floors);
         var selected = DungeonFloorId.Parse(file.SelectedFloorId ?? dungeon.CurrentDeepestFloorId.Value);
         _ = dungeon.GetFloor(selected);
@@ -37,12 +37,13 @@ public static class PlayerDungeonSaveService
     /// </summary>
     public static PlayerDungeonSaveImportResult MigrateLegacySingleFloor(
         DungeonBlueprintFile legacy,
-        string dungeonId = "player.dungeon.active")
+        string dungeonId = "player.dungeon.active",
+        MonsterRosterContent? monsterRoster = null)
     {
         ArgumentNullException.ThrowIfNull(legacy);
         var profile = DungeonBoardProfiles.Resolve(legacy.BoardProfile.Id);
         var editor = new DungeonEditorSession(profile.CreateBase());
-        var service = new DungeonStaticFileService(editor);
+        var service = new DungeonStaticFileService(editor, monsterRoster);
         var imported = service.ApplyBlueprint(legacy);
         if (!imported.Success) throw new InvalidDataException(imported.Error);
         var dungeon = PlayerDungeonState.FromSingleFloor(imported.State, profile.Id, dungeonId);
@@ -63,7 +64,7 @@ public static class PlayerDungeonSaveService
             blueprint);
     }
 
-    private static DungeonFloorState ImportFloor(PlayerDungeonSaveFloorFile source)
+    private static DungeonFloorState ImportFloor(PlayerDungeonSaveFloorFile source, MonsterRosterContent? monsterRoster)
     {
         var profile = DungeonBoardProfiles.Resolve(source.BoardProfileId);
         if (!string.Equals(source.Construction.BoardProfile.Id, profile.Id, StringComparison.Ordinal))
@@ -80,7 +81,7 @@ public static class PlayerDungeonSaveService
         // Restore progression-owned Capacity/Sector state before materializing construction so a
         // valid saved placement inside an unlocked sector is not rejected against the profile default.
         var editor = new DungeonEditorSession(baseState);
-        var service = new DungeonStaticFileService(editor, boardProfileId: profile.Id);
+        var service = new DungeonStaticFileService(editor, monsterRoster, boardProfileId: profile.Id);
         var imported = service.ApplyBlueprint(source.Construction);
         if (!imported.Success) throw new InvalidDataException($"{source.FloorId}: {imported.Error}");
         var board = imported.State;

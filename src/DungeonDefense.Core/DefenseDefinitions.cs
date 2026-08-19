@@ -63,7 +63,10 @@ public sealed record UnitDefinition(
     bool Blocks,
     int GuardZoneRadius,
     int HealPower = 0,
-    BodySizeClass BodySizeClass = BodySizeClass.Standard);
+    BodySizeClass BodySizeClass = BodySizeClass.Standard,
+    StatusKind? AttackStatusKind = null,
+    int AttackStatusStrength = 0,
+    int AttackStatusDurationTicks = 0);
 
 public sealed record TrapDefinition(
     string Id,
@@ -119,6 +122,7 @@ public sealed class DungeonCombatContent
 
 public sealed class DefenseContent
 {
+    public MonsterRosterContent? MonsterRoster { get; init; }
     public required IReadOnlyDictionary<string, UnitDefinition> Units { get; init; }
     public required IReadOnlyDictionary<string, TrapDefinition> Traps { get; init; }
     public required IReadOnlyDictionary<string, FacilityDefinition> Facilities { get; init; }

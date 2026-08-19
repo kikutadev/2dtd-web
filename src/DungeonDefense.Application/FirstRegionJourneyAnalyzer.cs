@@ -94,12 +94,15 @@ public static class FirstRegionJourneyAnalyzer
             throw new InvalidOperationException($"First-region analyzer requires {FirstRegionId} schedule.");
         if (policy.MaxInvasionsPerStuckDay <= 0) throw new ArgumentOutOfRangeException(nameof(policy));
 
+        var roster = baseContent.MonsterRoster
+            ?? throw new InvalidOperationException("First-region journey requires MonsterRosterContent on DefenseContent.");
         var region = regions.Region(FirstRegionId);
         var boardProfile = DungeonBoardProfiles.Resolve(region.StartingBoardProfileId);
         var campaign = new CampaignGameSession(
             new CampaignState(1, region.Id, PlayerDungeonState.FromSingleFloor(boardProfile.CreateBase(), boardProfile.Id), progression.StartingResources),
             progression,
-            regions);
+            regions,
+            monsterRoster: roster);
         var applied = campaign.Defense.StaticFiles.ApplyPattern(policy.BuildPattern);
         if (!applied.Success) throw new InvalidOperationException($"Journey policy {policy.Id} pattern failed: {applied.Error}");
 
@@ -129,11 +132,14 @@ public static class FirstRegionJourneyAnalyzer
                 var routeLength = DungeonPathfinder.FindRoute(campaign.Defense.Dungeon.DeepestFloor.Board).Count;
                 var simulation = campaign.StartDefense(content, scenarioSeed);
                 var auto = policy.AutoBattle ? campaign.Defense.CreateAutoBattleController() : null;
-                while (simulation.Outcome == DefenseOutcome.Running)
+                var defenseTickGuard = 0;
+                while (simulation.Outcome == DefenseOutcome.Running && defenseTickGuard++ < 50_000)
                 {
                     auto?.TryQueueAction(simulation);
                     simulation.Step();
                 }
+                if (simulation.Outcome == DefenseOutcome.Running)
+                    throw new InvalidOperationException($"Journey defense exceeded 50,000 ticks: region={campaign.State.RegionId} day={day} attempt={attemptsThisDay} seed={scenarioSeed} assault={scenario.AssaultProfileId}.");
                 totalAttempts++;
                 attemptsThisDay++;
                 var report = DefenseResultReport.From(simulation);

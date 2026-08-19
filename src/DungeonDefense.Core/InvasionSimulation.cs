@@ -708,36 +708,33 @@ public sealed class InvasionSimulation
     {
         foreach (var guard in _guards.Values.Where(x => x.Alive).OrderBy(x => x.EntityId, StringComparer.Ordinal))
         {
-            if (CombatStatusRules.HasStatus(guard.Statuses, StatusKind.Freeze) || Tick < guard.NextAttackTick || guard.TargetEntityId is null) continue;
+            if (CombatStatusRules.HasStatus(guard.Statuses, StatusKind.Freeze) || Tick < guard.NextAttackTick) continue;
+            if (TryHealAlly(guard, _guards.Values.Where(x => x.Alive)))
+            {
+                guard.NextAttackTick = Tick + Math.Max(1, guard.Definition.AttackCooldownTicks);
+                continue;
+            }
+            if (guard.TargetEntityId is null) continue;
             var target = _units.GetValueOrDefault(guard.TargetEntityId);
             if (target is null || !target.Alive || !CanAttack(guard.Position, guard.Definition.AttackRange, target.Position)) continue;
             ApplyDamage(target, guard.Definition.Damage, guard.EntityId, guard.Position, guard.Definition.Id, InvasionEventType.GuardAttack);
+            ApplyUnitAttackStatus(guard, target);
             guard.NextAttackTick = Tick + Math.Max(1, guard.Definition.AttackCooldownTicks);
         }
 
         foreach (var unit in _units.Values.Where(x => x.Alive && x.Admitted).OrderBy(x => x.FormationIndex))
         {
             if (CombatStatusRules.HasStatus(unit.Statuses, StatusKind.Freeze) || Tick < unit.NextAttackTick) continue;
-            if (unit.Definition.Role == UnitRole.Priest && unit.Definition.HealPower > 0)
+            if (TryHealAlly(unit, _units.Values.Where(x => x.Alive && x.Admitted)))
             {
-                var ally = _units.Values.Where(x => x.Alive && x.Admitted && x.EntityId != unit.EntityId && x.Hp < x.Definition.MaxHp)
-                    .Where(x => CanAttack(unit.Position, unit.Definition.AttackRange, x.Position))
-                    .OrderBy(x => x.Hp / (double)x.Definition.MaxHp)
-                    .ThenBy(x => x.FormationIndex)
-                    .FirstOrDefault();
-                if (ally is not null)
-                {
-                    var before = ally.Hp;
-                    ally.Hp = Math.Min(ally.Definition.MaxHp, ally.Hp + unit.Definition.HealPower);
-                    Events.Add(new(Tick, InvasionEventType.SpellCast, unit.EntityId, ally.EntityId, ally.Position, ally.Hp - before, "unit-heal", unit.Position, unit.Definition.Id));
-                    unit.NextAttackTick = Tick + Math.Max(1, unit.Definition.AttackCooldownTicks);
-                    continue;
-                }
+                unit.NextAttackTick = Tick + Math.Max(1, unit.Definition.AttackCooldownTicks);
+                continue;
             }
 
             if (unit.TargetEntityId is { } guardId && _guards.TryGetValue(guardId, out var guard) && guard.Alive && CanAttack(unit.Position, unit.Definition.AttackRange, guard.Position))
             {
                 ApplyDamage(guard, unit.Definition.Damage, unit.EntityId, unit.Position, unit.Definition.Id);
+                ApplyUnitAttackStatus(unit, guard);
                 unit.NextAttackTick = Tick + Math.Max(1, unit.Definition.AttackCooldownTicks);
                 continue;
             }
@@ -861,8 +858,30 @@ public sealed class InvasionSimulation
         }
     }
 
+    private bool TryHealAlly(RuntimeCombatActor healer, IEnumerable<RuntimeCombatActor> allies)
+    {
+        if (healer.Definition.HealPower <= 0) return false;
+        var candidates = allies
+            .Where(x => x.EntityId != healer.EntityId)
+            .Select((x, index) => new CombatAllyCandidate(x.EntityId, x.Position, x.Hp, x.Definition.MaxHp, x.Definition.Role, index))
+            .ToArray();
+        var decision = CombatUnitBehaviorRules.SelectHealTarget(healer.Definition, healer.Position, candidates, Floor.Board);
+        if (decision is null || decision.Amount <= 0) return false;
+        var target = allies.Single(x => x.EntityId == decision.TargetEntityId);
+        target.Hp = Math.Min(target.Definition.MaxHp, target.Hp + decision.Amount);
+        Events.Add(new(Tick, InvasionEventType.SpellCast, healer.EntityId, target.EntityId, target.Position, decision.Amount, "unit-heal", healer.Position, healer.Definition.Id));
+        return true;
+    }
+
+    private static void ApplyUnitAttackStatus(RuntimeCombatActor attacker, RuntimeCombatActor target)
+    {
+        if (!target.Alive) return;
+        if (CombatUnitBehaviorRules.AttackStatus(attacker.Definition) is { } status)
+            CombatStatusRules.Merge(target.Statuses, status);
+    }
+
     private bool CanAttack(GridPoint from, int range, GridPoint to)
-        => from.ManhattanDistance(to) <= range && (range <= 1 || DungeonLineOfSight.HasLineOfSight(Floor.Board, from, to));
+        => CombatUnitBehaviorRules.CanAttack(Floor.Board, from, range, to);
 
     private bool CanAttackObjective(RuntimeInvasionUnit unit)
         => Floor.Objective.Kind == InvasionObjectiveKind.CoreBreak && CanAttack(unit.Position, unit.Definition.AttackRange, Floor.Objective.Position);
