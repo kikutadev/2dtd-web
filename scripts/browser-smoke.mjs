@@ -39,7 +39,8 @@ await new Promise((resolve, reject) => { server.once('error', reject); server.li
 const proc = spawn(chrome, [
   '--headless=new', `--remote-debugging-port=${debugPort}`, '--remote-allow-origins=*',
   `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check',
-  '--window-size=844,390', 'about:blank',
+  '--no-sandbox', '--disable-dev-shm-usage', '--enable-webgl', '--ignore-gpu-blocklist',
+  '--use-gl=angle', '--use-angle=swiftshader', '--window-size=844,390', 'about:blank',
 ], { stdio: ['ignore', 'ignore', 'pipe'] });
 let stderr = '';
 proc.stderr.on('data', chunk => { stderr += chunk.toString(); });
