@@ -1,12 +1,5 @@
-**/bin/
-**/obj/
-.vscode/
 .DS_Store
-local-preview.png
-local-running.png
-local-debug.png
-publish/
-
-*.png.import
-live-*.png
+node_modules/
 artifacts/
+local-*.png
+live-*.png

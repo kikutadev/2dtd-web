@@ -1,9 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <RootNamespace>DungeonDefense.Presentation</RootNamespace>
-  </PropertyGroup>
-  <ItemGroup>
-    <ProjectReference Include="../DungeonDefense.Core/DungeonDefense.Core.csproj" />
-    <ProjectReference Include="../DungeonDefense.Application/DungeonDefense.Application.csproj" />
-  </ItemGroup>
-</Project>

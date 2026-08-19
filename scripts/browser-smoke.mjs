@@ -1,444 +1,106 @@
 #!/usr/bin/env node
-import { execFileSync, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { createReadStream, statSync } from 'node:fs';
+import { mkdtemp, rm } from 'node:fs/promises';
 import http from 'node:http';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(scriptDir, '..');
-const port = Number(process.env.WEB_SMOKE_PORT ?? '5279');
-const debugPort = Number(process.env.WEB_SMOKE_DEBUG_PORT ?? '19433');
-const externalUrl = process.env.WEB_SMOKE_BASE_URL?.trim();
-const capturePath = process.env.WEB_SMOKE_CAPTURE_PATH?.trim();
-const productCaptureWidth = Number(process.env.WEB_SMOKE_PRODUCT_CAPTURE_WIDTH ?? '844');
-const productCaptureHeight = Number(process.env.WEB_SMOKE_PRODUCT_CAPTURE_HEIGHT ?? '390');
-const titleCapturePath = process.env.WEB_SMOKE_TITLE_CAPTURE_PATH?.trim();
-const shopCapturePath = process.env.WEB_SMOKE_SHOP_CAPTURE_PATH?.trim();
-const hubCapturePath = process.env.WEB_SMOKE_HUB_CAPTURE_PATH?.trim();
-const briefingCapturePath = process.env.WEB_SMOKE_BRIEFING_CAPTURE_PATH?.trim();
-const invasionScoutCapturePath = process.env.WEB_SMOKE_INVASION_SCOUT_CAPTURE_PATH?.trim();
-const invasionResultCapturePath = process.env.WEB_SMOKE_INVASION_RESULT_CAPTURE_PATH?.trim();
-const invasionCaptureWidth = Number(process.env.WEB_SMOKE_INVASION_CAPTURE_WIDTH ?? '844');
-const invasionCaptureHeight = Number(process.env.WEB_SMOKE_INVASION_CAPTURE_HEIGHT ?? '390');
-const invasionCaptureLocale = (process.env.WEB_SMOKE_INVASION_CAPTURE_LOCALE ?? 'ja').trim().toLowerCase();
-const buildCapturePath = process.env.WEB_SMOKE_BUILD_CAPTURE_PATH?.trim();
-const battleCapturePath = process.env.WEB_SMOKE_BATTLE_CAPTURE_PATH?.trim();
-const defenseCapturePath = process.env.WEB_SMOKE_DEFENSE_CAPTURE_PATH?.trim();
-const url = externalUrl ? (externalUrl.endsWith('/') ? externalUrl : `${externalUrl}/`) : `http://127.0.0.1:${port}/`;
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const webRoot = path.join(repoRoot, 'public');
+const port = Number(process.env.WEB_SMOKE_PORT ?? 5279);
+const debugPort = Number(process.env.WEB_SMOKE_DEBUG_PORT ?? 19433);
 const chrome = process.env.CHROME_BIN ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-const profileDir = await mkdtemp(path.join(os.tmpdir(), '2dtd-web-smoke-profile-'));
-let publishDir;
-let webRoot;
-if (!externalUrl) {
-  publishDir = await mkdtemp(path.join(os.tmpdir(), '2dtd-web-smoke-publish-'));
-  execFileSync('dotnet', ['publish', 'src/DungeonDefense.Web/DungeonDefense.Web.csproj', '-c', 'Release', '--no-restore', '-o', publishDir], { cwd: repoRoot, stdio: 'pipe' });
-  webRoot = path.join(publishDir, 'wwwroot');
-}
-const children = [];
-let staticServer;
+const profile = await mkdtemp(path.join(os.tmpdir(), '2dtd-static-web-smoke-'));
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-function start(command, args, options = {}) {
-  const child = spawn(command, args, { cwd: repoRoot, stdio: ['ignore', 'pipe', 'pipe'], ...options });
-  children.push(child);
-  return child;
-}
-
-async function waitUntil(check, timeoutMs, label) {
-  const deadline = Date.now() + timeoutMs;
-  let lastError;
-  while (Date.now() < deadline) {
-    try {
-      const value = await check();
-      if (value) return value;
-    } catch (error) {
-      lastError = error;
+const mime = new Map([
+  ['.html', 'text/html; charset=utf-8'], ['.js', 'text/javascript; charset=utf-8'],
+  ['.wasm', 'application/wasm'], ['.pck', 'application/octet-stream'],
+  ['.png', 'image/png'], ['.json', 'application/json; charset=utf-8'],
+]);
+const server = http.createServer((request, response) => {
+  try {
+    const pathname = decodeURIComponent(new URL(request.url ?? '/', `http://127.0.0.1:${port}/`).pathname);
+    const relative = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
+    const file = path.resolve(webRoot, relative);
+    if (!file.startsWith(`${webRoot}${path.sep}`) && file !== path.join(webRoot, 'index.html')) {
+      response.writeHead(403).end(); return;
     }
-    await new Promise(resolve => setTimeout(resolve, 100));
-  }
-  throw new Error(`Timed out waiting for ${label}${lastError ? `: ${lastError.message}` : ''}`);
-}
+    const info = statSync(file);
+    if (!info.isFile()) { response.writeHead(404).end(); return; }
+    response.writeHead(200, { 'Content-Type': mime.get(path.extname(file).toLowerCase()) ?? 'application/octet-stream', 'Cache-Control': 'no-store' });
+    createReadStream(file).pipe(response);
+  } catch { response.writeHead(404).end(); }
+});
+await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
 
-async function fetchJson(endpoint) {
-  const response = await fetch(endpoint);
-  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-  return response.json();
-}
+const proc = spawn(chrome, [
+  '--headless=new', `--remote-debugging-port=${debugPort}`, '--remote-allow-origins=*',
+  `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check',
+  '--window-size=844,390', 'about:blank',
+], { stdio: ['ignore', 'ignore', 'pipe'] });
+let stderr = '';
+proc.stderr.on('data', chunk => { stderr += chunk.toString(); });
 
-let socket;
-let nextId = 1;
+let target;
+for (let i = 0; i < 100; i++) {
+  try {
+    const targets = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
+    target = targets.find(x => x.type === 'page');
+    if (target) break;
+  } catch {}
+  await sleep(100);
+}
+if (!target) throw new Error(`Chrome DevTools target unavailable: ${stderr}`);
+
+const ws = new WebSocket(target.webSocketDebuggerUrl);
+await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
+let id = 0;
 const pending = new Map();
-const browserDiagnostics = [];
-function cdp(method, params = {}) {
-  return new Promise((resolve, reject) => {
-    const id = nextId++;
-    pending.set(id, { resolve, reject });
-    socket.send(JSON.stringify({ id, method, params }));
-  });
-}
-
-async function evaluate(expression) {
-  const response = await cdp('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
-  if (response.exceptionDetails) throw new Error(response.exceptionDetails.text ?? 'Runtime.evaluate failed');
+const errors = [];
+const consoles = [];
+ws.onmessage = event => {
+  const message = JSON.parse(event.data);
+  if (message.method === 'Runtime.exceptionThrown') errors.push(`exception: ${message.params?.exceptionDetails?.text ?? 'unknown'}`);
+  if (message.method === 'Log.entryAdded') {
+    const entry = message.params?.entry;
+    if (entry?.level === 'error') errors.push(`log: ${entry.text}`);
+  }
+  if (message.method === 'Runtime.consoleAPICalled') {
+    const values = (message.params?.args ?? []).map(x => x.value ?? x.description ?? '').join(' ');
+    consoles.push(values);
+  }
+  if (message.id && pending.has(message.id)) {
+    const handler = pending.get(message.id); pending.delete(message.id);
+    message.error ? handler.reject(new Error(message.error.message)) : handler.resolve(message.result);
+  }
+};
+const cdp = (method, params = {}) => new Promise((resolve, reject) => {
+  const next = ++id; pending.set(next, { resolve, reject }); ws.send(JSON.stringify({ id: next, method, params }));
+});
+const evaluate = async expression => {
+  const response = await cdp('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
+  if (response.exceptionDetails) throw new Error(response.exceptionDetails.text ?? 'Runtime evaluation failed');
   return response.result?.value;
-}
-
-async function waitForExpression(expression, timeoutMs, label) {
-  return waitUntil(async () => await evaluate(expression), timeoutMs, label);
-}
-
-async function captureViewport(relativePath, width = productCaptureWidth, height = productCaptureHeight) {
-  if (!relativePath) return;
-  await cdp('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: true });
-  await new Promise(resolve => setTimeout(resolve, 250));
-  const screenshot = await cdp('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
-  const resolvedCapturePath = path.resolve(repoRoot, relativePath);
-  await mkdir(path.dirname(resolvedCapturePath), { recursive: true });
-  await writeFile(resolvedCapturePath, Buffer.from(screenshot.data, 'base64'));
-}
-
-async function clickButtonContaining(text) {
-  const literal = JSON.stringify(text);
-  const clicked = await evaluate(`(() => { const button = [...document.querySelectorAll('button')].find(x => x.textContent.includes(${literal}) && !x.disabled); if (!button) return false; button.click(); return true; })()`);
-  if (!clicked) throw new Error(`Clickable button not found: ${text}`);
-}
-
-async function clickFirst(selector) {
-  const literal = JSON.stringify(selector);
-  const clicked = await evaluate(`(() => { const element = document.querySelector(${literal}); if (!element) return false; element.click(); return true; })()`);
-  if (!clicked) throw new Error(`Clickable element not found: ${selector}`);
-}
+};
 
 try {
-  if (!externalUrl) {
-    const contentTypes = new Map([
-      ['.html', 'text/html; charset=utf-8'], ['.js', 'text/javascript; charset=utf-8'],
-      ['.css', 'text/css; charset=utf-8'], ['.json', 'application/json; charset=utf-8'],
-      ['.wasm', 'application/wasm'], ['.png', 'image/png'], ['.svg', 'image/svg+xml'],
-      ['.ico', 'image/x-icon'], ['.dat', 'application/octet-stream'],
-    ]);
-    staticServer = http.createServer((request, response) => {
-      try {
-        const pathname = decodeURIComponent(new URL(request.url ?? '/', url).pathname);
-        const relative = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
-        const filePath = path.resolve(webRoot, relative);
-        if (!filePath.startsWith(`${webRoot}${path.sep}`) && filePath !== path.join(webRoot, 'index.html')) {
-          response.writeHead(403).end();
-          return;
-        }
-        const info = statSync(filePath);
-        if (!info.isFile()) { response.writeHead(404).end(); return; }
-        const extension = path.extname(filePath).toLowerCase();
-        response.writeHead(200, { 'Content-Type': contentTypes.get(extension) ?? 'application/octet-stream', 'Cache-Control': 'no-store' });
-        createReadStream(filePath).pipe(response);
-      } catch {
-        response.writeHead(404).end();
-      }
-    });
-    await new Promise((resolve, reject) => {
-      staticServer.once('error', reject);
-      staticServer.listen(port, '127.0.0.1', resolve);
-    });
-  } else {
-    await waitUntil(async () => (await fetch(url, { cache: 'no-store' })).ok, 15_000, 'public Web host');
+  await cdp('Runtime.enable'); await cdp('Log.enable'); await cdp('Page.enable');
+  await cdp('Emulation.setDeviceMetricsOverride', { width: 844, height: 390, deviceScaleFactor: 1, mobile: false });
+  await cdp('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+  let ready = false;
+  for (let i = 0; i < 180; i++) {
+    ready = await evaluate(`document.querySelector('canvas')?.width === 844 && document.querySelector('canvas')?.height === 390`);
+    if (ready && consoles.some(x => x.includes('Godot Engine v4.6.3'))) break;
+    await sleep(100);
   }
-
-  const chromeProcess = start(chrome, [
-    '--headless=new',
-    `--remote-debugging-port=${debugPort}`,
-    '--remote-allow-origins=*',
-    `--user-data-dir=${profileDir}`,
-    '--no-first-run',
-    '--no-default-browser-check',
-    '--disable-gpu',
-    'about:blank',
-  ]);
-  let chromeError = '';
-  chromeProcess.stderr.on('data', chunk => { chromeError += chunk.toString(); });
-
-  const target = await waitUntil(async () => {
-    const targets = await fetchJson(`http://127.0.0.1:${debugPort}/json/list`);
-    return targets.find(x => x.type === 'page');
-  }, 10_000, 'Chrome page target');
-
-  socket = new WebSocket(target.webSocketDebuggerUrl);
-  await new Promise((resolve, reject) => {
-    socket.onopen = resolve;
-    socket.onerror = event => reject(new Error(`CDP websocket error: ${event.message ?? 'unknown'}`));
-  });
-  socket.onmessage = event => {
-    const message = JSON.parse(event.data);
-    if (message.method === 'Runtime.exceptionThrown') browserDiagnostics.push(`exception: ${message.params?.exceptionDetails?.text ?? 'unknown'}`);
-    if (message.method === 'Log.entryAdded') browserDiagnostics.push(`log: ${message.params?.entry?.level ?? ''} ${message.params?.entry?.text ?? ''}`);
-    if (message.method === 'Runtime.consoleAPICalled') {
-      const values = (message.params?.args ?? []).map(x => x.value ?? x.description ?? '').join(' ');
-      browserDiagnostics.push(`console: ${message.params?.type ?? ''} ${values}`);
-    }
-    if (!message.id || !pending.has(message.id)) return;
-    const handler = pending.get(message.id);
-    pending.delete(message.id);
-    if (message.error) handler.reject(new Error(message.error.message));
-    else handler.resolve(message.result);
-  };
-
-  await cdp('Runtime.enable');
-  await cdp('Log.enable');
-  await cdp('Page.enable');
-  await cdp('Page.navigate', { url });
-  try {
-    await waitForExpression(`document.body?.innerText.includes('新規Runを始める')`, 15_000, 'Title screen');
-    await captureViewport(titleCapturePath);
-
-    // Shop is reachable from Title without inventing a Web entitlement. It previews the real
-    // synchronized production assets while billing remains disabled on the Web capability boundary.
-    await clickButtonContaining('ショップ');
-    await waitForExpression(`document.body?.innerText.includes('蒼核の儀式') && document.querySelectorAll('.shop-preview-grid img').length >= 13`, 5_000, 'Shop paid theme preview');
-    await waitForExpression(`[...document.querySelectorAll('.shop-preview-grid img')].length >= 13 && [...document.querySelectorAll('.shop-preview-grid img')].every(x => x.complete && x.naturalWidth > 0)`, 12_000, 'Shop paid theme image loading');
-    const shopSemantics = await evaluate(`(() => ({
-      previews: document.querySelectorAll('.shop-preview-grid img').length,
-      themed: [...document.querySelectorAll('.shop-preview-grid img')].filter(x => (x.getAttribute('src') || '').includes('/themes/azure_core_rite/')).length,
-      loaded: [...document.querySelectorAll('.shop-preview-grid img')].filter(x => x.complete && x.naturalWidth > 0).length,
-      purchaseDisabled: [...document.querySelectorAll('button')].some(x => x.textContent.includes('Web Previewでは購入できません') && x.disabled),
-      overflow: document.documentElement.scrollWidth > window.innerWidth + 1
-    }))()`);
-    if (shopSemantics.previews < 13 || shopSemantics.themed < 13 || shopSemantics.loaded < 13 || !shopSemantics.purchaseDisabled || shopSemantics.overflow)
-      throw new Error(`Shop preview semantics missing: ${JSON.stringify(shopSemantics)}`);
-    await captureViewport(shopCapturePath);
-    await clickButtonContaining('戻る');
-    await waitForExpression(`document.body?.innerText.includes('新規Runを始める')`, 3_000, 'Return from Shop to Title');
-
-    await clickButtonContaining('新規Runを始める');
-    await waitForExpression(`document.body?.innerText.includes('地下領域') && document.body?.innerText.includes('ダンジョン編集')`, 5_000, 'Hub');
-    await captureViewport(hubCapturePath);
-    await clickButtonContaining('ダンジョン編集');
-    await waitForExpression(`document.querySelector('[data-tutorial-step="Entrance"]')`, 5_000, 'Tutorial entrance');
-  } catch (error) {
-    console.error('browser-diagnostics=', browserDiagnostics.join('\n'));
-    console.error('browser-body=', await evaluate(`document.body?.innerText ?? ''`));
-    console.error('browser-html=', String(await evaluate(`document.documentElement?.outerHTML ?? ''`)).slice(0, 4000));
-    throw error;
-  }
-
-  const desktopHasPageOverflow = await evaluate(`document.documentElement.scrollWidth > window.innerWidth + 1`);
-  if (desktopHasPageOverflow) throw new Error('Unexpected document-level horizontal overflow on desktop viewport');
-
-  await clickButtonContaining('›');
-  await waitForExpression(`document.querySelector('[data-tutorial-step="Route"]')`, 2_000, 'Tutorial route');
-  await clickButtonContaining('›');
-  await waitForExpression(`document.querySelector('[data-tutorial-step="Passage"]')`, 2_000, 'Tutorial passage');
-  await clickButtonContaining('+');
-  await clickButtonContaining('通路を掘る');
-  await clickFirst('.cell.tutorial-cell-focus.build-valid');
-  await waitForExpression(`document.querySelector('[data-tutorial-step="Room"]')`, 3_000, 'Tutorial room');
-
-  await clickButtonContaining('+');
-  await clickButtonContaining('守備室');
-  await clickFirst('.cell.tutorial-cell-focus.build-valid');
-  await waitForExpression(`document.querySelector('[data-tutorial-step="DefensePhase"]')`, 3_000, 'Tutorial defense phase');
-
-  await clickButtonContaining('防衛配置');
-  await waitForExpression(`document.querySelector('[data-tutorial-step="Trap"]')`, 2_000, 'Tutorial trap');
-  await clickButtonContaining('+');
-  await clickButtonContaining('棘罠');
-  await clickFirst('.cell.tutorial-cell-focus.build-valid');
-  await waitForExpression(`document.querySelector('[data-tutorial-step="Guard"]')`, 3_000, 'Tutorial guard');
-
-  await clickButtonContaining('+');
-  await clickButtonContaining('スケルトン戦士');
-  await clickFirst('.cell.tutorial-cell-focus.build-valid');
-  await waitForExpression(`document.querySelector('[data-tutorial-step="GuardZone"]')`, 3_000, 'Tutorial guard zone');
-  await clickFirst('.cell.tutorial-cell-focus');
-  await waitForExpression(`document.querySelector('[data-tutorial-step="Briefing"]')`, 3_000, 'Tutorial briefing');
-
-  await captureViewport(buildCapturePath);
-  await clickButtonContaining('完了');
-  await waitForExpression(`document.querySelector('[data-tutorial-step="Combat"]') && document.body.innerText.includes('最初の侵入者')`, 3_000, 'Assault briefing');
-  await captureViewport(briefingCapturePath);
-  await clickButtonContaining('防衛開始');
-  await waitForExpression(`document.querySelector('.combat-topbar') && document.body.innerText.includes('Wave')`, 5_000, 'Defense phase');
-  await clickButtonContaining('3×');
-  await captureViewport(battleCapturePath);
-
-  const outcome = await waitUntil(async () => {
-    const text = await evaluate(`document.body.innerText`);
-    if (text.includes('迎撃成功')) return '迎撃成功';
-    if (text.includes('迎撃失敗')) return '迎撃失敗';
-    return false;
-  }, 20_000, 'Defense result');
-  await waitForExpression(`document.querySelector('[data-tutorial-step="Result"]')`, 3_000, 'Tutorial result');
-  await captureViewport(defenseCapturePath);
-  await clickButtonContaining('›');
-  await waitForExpression(`!document.querySelector('.tutorial-spirit-overlay')`, 2_000, 'Tutorial complete');
-
-  await clickButtonContaining('ホーム');
-  await waitForExpression(`document.body.innerText.includes('地下領域')`, 3_000, 'Return to Hub');
-  await clickButtonContaining('スタート画面');
-  await waitForExpression(`document.body.innerText.includes('新規Runを始める') && [...document.querySelectorAll('button')].some(x => x.textContent.includes('続きから') && !x.disabled)`, 3_000, 'Return to Title with browser-persistent Run');
-  const persistedRun = await evaluate(`localStorage.getItem('dungeon-defense.web.run.v1')`);
-  if (!persistedRun || !persistedRun.includes('player_dungeon_save')) throw new Error('Production player dungeon save was not written to localStorage');
-
-  // Reload is the real persistence boundary. Continue must remain available after the Blazor app
-  // and all in-memory host state are recreated from scratch.
-  await cdp('Page.reload', { ignoreCache: true });
-  await waitForExpression(`document.body.innerText.includes('新規Runを始める') && [...document.querySelectorAll('button')].some(x => x.textContent.includes('続きから') && !x.disabled)`, 12_000, 'Reloaded Title with persisted Continue');
-  await clickButtonContaining('続きから');
-  await waitForExpression(`document.body.innerText.includes('地下領域') && document.body.innerText.includes('ダンジョン編集')`, 5_000, 'Continue persisted Run after reload');
-  await clickButtonContaining('EN');
-  await waitForExpression(`document.body.innerText.includes('Dungeon Domain') && document.body.innerText.includes('Edit Dungeon')`, 3_000, 'English Hub locale');
-
-  await cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
-  await new Promise(resolve => setTimeout(resolve, 250));
-  const mobileMetrics = await evaluate(`(() => ({ viewport: window.innerWidth, page: document.documentElement.scrollWidth }))()`);
-  if (mobileMetrics.page > mobileMetrics.viewport + 1) throw new Error(`Unexpected document-level mobile overflow: ${JSON.stringify(mobileMetrics)}`);
-  await clickButtonContaining('日本語');
-
-  await clickButtonContaining('侵攻');
-  await waitForExpression(`document.body.innerText.includes('侵攻先') && document.body.innerText.includes('黒鉄坑道')`, 8_000, 'Invasion locations');
-  await clickButtonContaining('確認');
-  await waitForExpression(`document.querySelector('.scout-card .invasion-dungeon-map') && document.body.innerText.includes('地下1階')`, 3_000, 'Invasion scouting');
-  const scoutMapSemantics = await evaluate(`(() => {
-    const map = document.querySelector('.scout-card .invasion-dungeon-map');
-    return {
-      map: !!map,
-      rooms: map?.querySelectorAll('.room-footprint').length ?? 0,
-      route: !!map?.querySelector('[data-testid="invasion-route"]'),
-      objective: !!map?.querySelector('[data-testid="invasion-objective"]'),
-      actors: map?.querySelectorAll('.scout-actor').length ?? 0,
-      digest: map?.getAttribute('data-map-digest') ?? ''
-    };
-  })()`);
-  if (!scoutMapSemantics.map || scoutMapSemantics.rooms < 3 || !scoutMapSemantics.route || !scoutMapSemantics.objective || scoutMapSemantics.actors < 1 || !scoutMapSemantics.digest)
-    throw new Error(`Invasion scout spatial semantics missing: ${JSON.stringify(scoutMapSemantics)}`);
-  if (invasionScoutCapturePath) {
-    if (invasionCaptureLocale === 'en') {
-      await clickButtonContaining('EN');
-      await waitForExpression(`document.body.innerText.includes('Black Iron Mine')`, 3_000, 'English invasion scout capture locale');
-    }
-    await captureViewport(invasionScoutCapturePath, invasionCaptureWidth, invasionCaptureHeight);
-    if (invasionCaptureLocale === 'en') {
-      await clickButtonContaining('日本語');
-      await waitForExpression(`document.body.innerText.includes('黒鉄坑道')`, 3_000, 'Japanese invasion scout continuation locale');
-    }
-    await cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
-    await new Promise(resolve => setTimeout(resolve, 150));
-  }
-  await clickButtonContaining('部隊編成');
-  await waitForExpression(`document.body.innerText.includes('編成') && document.body.innerText.includes('侵攻開始')`, 3_000, 'Invasion formation');
-  const invasionCapacity = await evaluate(`document.querySelector('.invasion-formation .capacity-text')?.textContent.trim()`);
-  if (invasionCapacity !== '12 / 12') throw new Error(`Expected canonical invasion formation capacity 12 / 12, got ${invasionCapacity}`);
-
-  await clickButtonContaining('侵攻開始');
-  await waitForExpression(`document.body.innerText.includes('侵攻戦')`, 5_000, 'Invasion battle');
-  const battlefieldSemantics = await evaluate(`(() => {
-    const map = document.querySelector('.invasion-dungeon-map.battle');
-    return {
-      battlefield: !!map,
-      reserve: !!document.querySelector('[data-testid="invasion-reserve"]'),
-      rooms: map?.querySelectorAll('.room-footprint').length ?? 0,
-      route: !!map?.querySelector('[data-testid="invasion-route"]'),
-      objective: !!map?.querySelector('[data-testid="invasion-objective"]'),
-      staticActors: map?.querySelectorAll('.static-actor').length ?? 0
-    };
-  })()`);
-  if (!battlefieldSemantics.battlefield || !battlefieldSemantics.reserve || battlefieldSemantics.rooms < 3 || !battlefieldSemantics.route || !battlefieldSemantics.objective || battlefieldSemantics.staticActors < 1)
-    throw new Error(`Invasion spatial battlefield semantics missing: ${JSON.stringify(battlefieldSemantics)}`);
-  for (let index = 0; index < 12; index++) {
-    const deployed = await evaluate(`(() => { const button = document.querySelector('.deploy-commands button.primary:not(:disabled)'); if (!button) return false; button.click(); return true; })()`);
-    if (!deployed) break;
-    await new Promise(resolve => setTimeout(resolve, 60));
-  }
-  await waitForExpression(`document.querySelectorAll('.invasion-dungeon-map.battle .combat-unit.attacker').length >= 2`, 4_000, 'Invasion spatial deployment');
-  if (capturePath) {
-    if (invasionCaptureLocale === 'en') {
-      await clickButtonContaining('EN');
-      await waitForExpression(`document.body.innerText.includes('Invasion Battle')`, 3_000, 'English invasion battle capture locale');
-    }
-    await captureViewport(capturePath, invasionCaptureWidth, invasionCaptureHeight);
-    if (invasionCaptureLocale === 'en') {
-      await clickButtonContaining('日本語');
-      await waitForExpression(`document.body.innerText.includes('侵攻戦')`, 3_000, 'Japanese invasion battle continuation locale');
-    }
-    await cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
-    await new Promise(resolve => setTimeout(resolve, 150));
-  }
-  const invasionMobileMetrics = await evaluate(`(() => ({ viewport: window.innerWidth, page: document.documentElement.scrollWidth, battleClient: document.querySelector('.invasion-battle-body')?.clientWidth ?? 0, battleScroll: document.querySelector('.invasion-battle-body')?.scrollWidth ?? 0, mapClient: document.querySelector('.invasion-dungeon-map.battle')?.clientWidth ?? 0, mapScroll: document.querySelector('.invasion-dungeon-map.battle')?.scrollWidth ?? 0 }))()`);
-  if (invasionMobileMetrics.page > invasionMobileMetrics.viewport + 1) throw new Error(`Unexpected invasion document-level mobile overflow: ${JSON.stringify(invasionMobileMetrics)}`);
-  if (invasionMobileMetrics.battleScroll > invasionMobileMetrics.battleClient + 1 || invasionMobileMetrics.mapScroll > invasionMobileMetrics.mapClient + 1)
-    throw new Error(`Invasion spatial map must remain contained on narrow viewport: ${JSON.stringify(invasionMobileMetrics)}`);
-
-  await clickButtonContaining('3×');
-
-  const invasionOutcome = await waitUntil(async () => {
-    const wardClicked = await evaluate(`(() => { const button = [...document.querySelectorAll('button')].find(x => x.textContent.includes('防護 35 MP') && !x.disabled); if (button) { button.click(); return true; } return false; })()`);
-    if (wardClicked) await new Promise(resolve => setTimeout(resolve, 40));
-    const text = await evaluate(`document.body.innerText`);
-    if (text.includes('侵攻成功')) return '侵攻成功';
-    if (text.includes('部隊壊滅')) return '部隊壊滅';
-    if (text.includes('撤退完了')) return '撤退完了';
-    return false;
-  }, 25_000, 'Invasion result');
-  if (invasionOutcome !== '侵攻成功') throw new Error(`Expected canonical invasion success, got ${invasionOutcome}`);
-  const performanceResult = await evaluate(`(() => {
-    const text = document.body.innerText;
-    return {
-      base: text.includes('通常報酬'),
-      performance: text.includes('無犠牲攻略') || text.includes('損耗抑制'),
-      percent: text.includes('%'),
-      total: text.includes('持ち帰り')
-    };
-  })()`);
-  if (!performanceResult.base || !performanceResult.performance || !performanceResult.percent || !performanceResult.total)
-    throw new Error(`Invasion performance result semantics missing: ${JSON.stringify(performanceResult)}`);
-  if (invasionResultCapturePath) {
-    if (invasionCaptureLocale === 'en') {
-      await clickButtonContaining('EN');
-      await waitForExpression(`document.body.innerText.includes('Base reward') && (document.body.innerText.includes('Clean Clear') || document.body.innerText.includes('Controlled Clear'))`, 3_000, 'English invasion result capture locale');
-    }
-    await captureViewport(invasionResultCapturePath, invasionCaptureWidth, invasionCaptureHeight);
-    const resultLayout = await evaluate(`(() => {
-      const body = document.querySelector('.invasion-result-body');
-      const strip = body?.querySelector('.result-floor-strip');
-      if (!body || !strip) return { present: false };
-      const bodyRect = body.getBoundingClientRect();
-      const stripRect = strip.getBoundingClientRect();
-      return {
-        present: true,
-        pageWidth: document.documentElement.scrollWidth,
-        viewportWidth: window.innerWidth,
-        bodyBottom: bodyRect.bottom,
-        stripBottom: stripRect.bottom,
-        floors: strip.querySelectorAll('.result-floor').length
-      };
-    })()`);
-    if (!resultLayout.present || resultLayout.pageWidth > resultLayout.viewportWidth + 1 || resultLayout.floors !== 4 || resultLayout.stripBottom > resultLayout.bodyBottom + 1)
-      throw new Error(`Invasion result layout overflow: ${JSON.stringify(resultLayout)}`);
-    if (invasionCaptureLocale === 'en') {
-      await clickButtonContaining('日本語');
-      await waitForExpression(`document.body.innerText.includes('通常報酬')`, 3_000, 'Japanese invasion result continuation locale');
-    }
-    await cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
-    await new Promise(resolve => setTimeout(resolve, 150));
-  }
-
-  await clickButtonContaining('偵察へ戻る');
-  await waitForExpression(`document.querySelector('.scout-card .invasion-dungeon-map') && document.body.innerText.includes('黒鉄坑道')`, 3_000, 'Return to invasion scouting');
-  await clickButtonContaining('EN');
-  await waitForExpression(`document.body.innerText.includes('Targets') && document.body.innerText.includes('Black Iron Mine')`, 3_000, 'Invasion English locale');
-  await clickButtonContaining('Targets');
-  await waitForExpression(`document.body.innerText.includes('Targets') && document.body.innerText.includes('Black Iron Mine')`, 3_000, 'Return to invasion locations');
-  await clickButtonContaining('Defense');
-  await waitForExpression(`document.body.innerText.includes('Dungeon Domain') || document.body.innerText.includes('地下領域')`, 3_000, 'Return to Hub from invasion');
-
-  console.log(`browser-smoke=ok shop=azure-core-preview save=reload-continue tutorial=complete defense=${outcome} locale=ja/en mobile=${mobileMetrics.viewport}px invasion=${invasionOutcome} invasionLocale=en`);
+  if (!ready) throw new Error('Godot Web canvas did not reach 844x390');
+  if (!consoles.some(x => x.includes('WebGL 2.0'))) throw new Error(`WebGL2 startup log missing: ${consoles.join(' | ')}`);
+  const productErrors = errors.filter(x => !x.includes('AudioContext'));
+  if (productErrors.length) throw new Error(`Godot Web runtime errors: ${productErrors.join(' | ')}`);
+  console.log('Static Godot Web smoke: OK canvas=844x390 webgl=2 source=' + (await (await fetch(`http://127.0.0.1:${port}/SOURCE_REVISION.txt`).catch(() => null))?.text?.() ?? 'artifact'));
 } finally {
-  try { socket?.close(); } catch {}
-  if (staticServer) await new Promise(resolve => staticServer.close(resolve));
-  for (const child of children.reverse()) {
-    try { child.kill('SIGTERM'); } catch {}
-  }
-  await new Promise(resolve => setTimeout(resolve, 250));
-  try { await rm(profileDir, { recursive: true, force: true }); } catch {}
-  if (publishDir) { try { await rm(publishDir, { recursive: true, force: true }); } catch {} }
+  ws.close(); proc.kill('SIGTERM'); server.close(); await sleep(200); await rm(profile, { recursive: true, force: true });
 }
