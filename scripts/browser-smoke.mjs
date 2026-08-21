@@ -30,7 +30,10 @@ const server = http.createServer((request, response) => {
     }
     const info = statSync(file);
     if (!info.isFile()) { response.writeHead(404).end(); return; }
-    response.writeHead(200, { 'Content-Type': mime.get(path.extname(file).toLowerCase()) ?? 'application/octet-stream', 'Cache-Control': 'no-store' });
+    response.writeHead(200, {
+      'Content-Type': mime.get(path.extname(file).toLowerCase()) ?? 'application/octet-stream',
+      'Cache-Control': 'no-store',
+    });
     createReadStream(file).pipe(response);
   } catch { response.writeHead(404).end(); }
 });
@@ -70,8 +73,7 @@ ws.onmessage = event => {
     if (entry?.level === 'error') errors.push(`log: ${entry.text}`);
   }
   if (message.method === 'Runtime.consoleAPICalled') {
-    const values = (message.params?.args ?? []).map(x => x.value ?? x.description ?? '').join(' ');
-    consoles.push(values);
+    consoles.push((message.params?.args ?? []).map(x => x.value ?? x.description ?? '').join(' '));
   }
   if (message.id && pending.has(message.id)) {
     const handler = pending.get(message.id); pending.delete(message.id);
@@ -89,19 +91,43 @@ const evaluate = async expression => {
 
 try {
   await cdp('Runtime.enable'); await cdp('Log.enable'); await cdp('Page.enable');
-  await cdp('Emulation.setDeviceMetricsOverride', { width: 844, height: 390, deviceScaleFactor: 1, mobile: false });
+  await cdp('Emulation.setUserAgentOverride', {
+    userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 Version/26.0 Mobile/15E148 Safari/604.1',
+    platform: 'iPhone',
+  });
+  await cdp('Emulation.setDeviceMetricsOverride', {
+    width: 844, height: 390, deviceScaleFactor: 3, mobile: true,
+    screenOrientation: { type: 'landscapePrimary', angle: 90 },
+  });
+  await cdp('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
   await cdp('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+
   let ready = false;
   for (let i = 0; i < 180; i++) {
-    ready = await evaluate(`document.querySelector('canvas')?.width === 844 && document.querySelector('canvas')?.height === 390`);
+    ready = await evaluate(`(() => {
+      const c=document.querySelector('canvas');
+      return !!c && c.clientWidth===844 && c.clientHeight===390
+        && c.width===2532 && c.height===1170
+        && window.devicePixelRatio===3;
+    })()`);
     if (ready && consoles.some(x => x.includes('Godot Engine v4.6.3'))) break;
     await sleep(100);
   }
-  if (!ready) throw new Error('Godot Web canvas did not reach 844x390');
+  if (!ready) throw new Error('Godot Web mobile canvas did not reach 844x390@3x');
   if (!consoles.some(x => x.includes('WebGL 2.0'))) throw new Error(`WebGL2 startup log missing: ${consoles.join(' | ')}`);
+
+  const before = await cdp('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+  const x = 422, y = 257;
+  await cdp('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y, radiusX: 8, radiusY: 8 }] });
+  await cdp('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await sleep(1800);
+  const after = await cdp('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+  if (before.data === after.data) throw new Error('Touch input did not change the rendered product surface');
+
   const productErrors = errors.filter(x => !x.includes('AudioContext'));
   if (productErrors.length) throw new Error(`Godot Web runtime errors: ${productErrors.join(' | ')}`);
-  console.log('Static Godot Web smoke: OK canvas=844x390 webgl=2 source=' + (await (await fetch(`http://127.0.0.1:${port}/SOURCE_REVISION.txt`).catch(() => null))?.text?.() ?? 'artifact'));
+  const source = await (await fetch(`http://127.0.0.1:${port}/SOURCE_REVISION.txt`)).text();
+  console.log(`Static Godot Web smoke: OK mobile=844x390@3x touch=1 webgl=2 source=${source.trim()}`);
 } finally {
-  ws.close(); proc.kill('SIGTERM'); server.close(); await sleep(200); await rm(profile, { recursive: true, force: true });
+  ws.close(); proc.kill('SIGTERM'); server.close(); await sleep(300); await rm(profile, { recursive: true, force: true }).catch(() => {});
 }
