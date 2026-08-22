@@ -91,6 +91,12 @@ const evaluate = async expression => {
 
 try {
   await cdp('Runtime.enable'); await cdp('Log.enable'); await cdp('Page.enable');
+  await cdp('Page.addScriptToEvaluateOnNewDocument', {
+    source: `
+      window.ontouchstart = null;
+      try { Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 5 }); } catch {}
+    `,
+  });
   await cdp('Emulation.setUserAgentOverride', {
     userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 Version/26.0 Mobile/15E148 Safari/604.1',
     platform: 'iPhone',
@@ -108,7 +114,9 @@ try {
       const c=document.querySelector('canvas');
       return !!c && c.clientWidth===844 && c.clientHeight===390
         && c.width===2532 && c.height===1170
-        && window.devicePixelRatio===3;
+        && window.devicePixelRatio===3
+        && ('ontouchstart' in window)
+        && navigator.maxTouchPoints>=5;
     })()`);
     if (ready && consoles.some(x => x.includes('Godot Engine v4.6.3'))) break;
     await sleep(100);
