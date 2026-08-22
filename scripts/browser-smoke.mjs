@@ -88,6 +88,36 @@ const evaluate = async expression => {
   if (response.exceptionDetails) throw new Error(response.exceptionDetails.text ?? 'Runtime evaluation failed');
   return response.result?.value;
 };
+const screenshotData = async () => (await cdp('Page.captureScreenshot', {
+  format: 'png', captureBeyondViewport: false,
+})).data;
+const touchTap = async (x, y, label) => {
+  const before = await screenshotData();
+  await cdp('Input.dispatchTouchEvent', {
+    type: 'touchStart', touchPoints: [{ x, y, radiusX: 8, radiusY: 8 }],
+  });
+  await cdp('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await sleep(650);
+  const after = await screenshotData();
+  if (before === after) throw new Error(`Touch journey did not change surface: ${label}`);
+};
+const touchSwipe = async (x, y1, y2, label) => {
+  const before = await screenshotData();
+  await cdp('Input.dispatchTouchEvent', {
+    type: 'touchStart', touchPoints: [{ x, y: y1, radiusX: 8, radiusY: 8 }],
+  });
+  for (let i = 1; i <= 8; i++) {
+    const y = y1 + (y2 - y1) * i / 8;
+    await cdp('Input.dispatchTouchEvent', {
+      type: 'touchMove', touchPoints: [{ x, y, radiusX: 8, radiusY: 8 }],
+    });
+    await sleep(20);
+  }
+  await cdp('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await sleep(650);
+  const after = await screenshotData();
+  if (before === after) throw new Error(`Touch journey swipe did not change surface: ${label}`);
+};
 
 try {
   await cdp('Runtime.enable'); await cdp('Log.enable'); await cdp('Page.enable');
@@ -124,18 +154,24 @@ try {
   if (!ready) throw new Error('Godot Web mobile canvas did not reach 844x390@3x');
   if (!consoles.some(x => x.includes('WebGL 2.0'))) throw new Error(`WebGL2 startup log missing: ${consoles.join(' | ')}`);
 
-  const before = await cdp('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
-  const x = 422, y = 257;
-  await cdp('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y, radiusX: 8, radiusY: 8 }] });
-  await cdp('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  await sleep(1800);
-  const after = await cdp('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
-  if (before.data === after.data) throw new Error('Touch input did not change the rendered product surface');
+  await touchTap(422, 257, 'new-game');
+  await sleep(1200);
+  await touchTap(812, 26, 'tutorial-skip');
+  await touchTap(812, 28, 'editor-done');
+  await touchTap(808, 28, 'briefing-back');
+  await touchSwipe(400, 280, 60, 'hub-scroll-to-shop');
+  await touchTap(630, 297, 'shop-open');
+  await touchTap(808, 28, 'shop-back');
+  await touchSwipe(400, 320, 180, 'hub-scroll-to-invasion');
+  await touchTap(212, 236, 'invasion-open');
+  await touchTap(780, 112, 'invasion-location-inspect');
+  await touchTap(736, 110, 'formation-open');
+  await touchTap(314, 179, 'formation-plus');
 
   const productErrors = errors.filter(x => !x.includes('AudioContext'));
   if (productErrors.length) throw new Error(`Godot Web runtime errors: ${productErrors.join(' | ')}`);
   const source = await (await fetch(`http://127.0.0.1:${port}/SOURCE_REVISION.txt`)).text();
-  console.log(`Static Godot Web smoke: OK mobile=844x390@3x touch=1 webgl=2 source=${source.trim()}`);
+  console.log(`Static Godot Web smoke: OK mobile=844x390@3x touch=1 journey=hub-shop-invasion-formation webgl=2 source=${source.trim()}`);
 } finally {
   ws.close(); proc.kill('SIGTERM'); server.close(); await sleep(300); await rm(profile, { recursive: true, force: true }).catch(() => {});
 }
